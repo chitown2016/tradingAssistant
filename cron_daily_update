@@ -1,0 +1,23 @@
+# Cron configuration for daily stock update
+# 
+# To install this cron job:
+# 1. Copy this file to your EC2 instance
+# 2. Run: crontab -e
+# 3. Add the line below (adjust path and time as needed)
+#
+# Schedule: Daily at 2:00 AM UTC (adjust timezone as needed)
+# 
+# 0 2 * * * cd ~/tradingAssistant && /usr/bin/python3 run_daily_update_ec2.py >> logs/cron.log 2>&1
+#
+# Alternative schedules:
+# - Daily at 2 AM UTC: 0 2 * * *
+# - Daily at 6 AM UTC: 0 6 * * *
+# - Every 12 hours: 0 */12 * * *
+# - Weekdays only at 2 AM: 0 2 * * 1-5
+#
+# To view cron logs:
+# tail -f ~/tradingAssistant/logs/cron.log
+
+# Recommended cron entry (uncomment and adjust):
+# 0 2 * * * cd ~/tradingAssistant && /usr/bin/python3 run_daily_update_ec2.py >> logs/cron.log 2>&1
+

@@ -5,16 +5,50 @@ import yfinance as yf
 import os
 import psycopg2
 from datetime import datetime
+from psycopg2.extras import execute_values
+import sys
+import io
+
+# Fix Windows Unicode encoding issues AND disable buffering
+if sys.platform == 'win32':
+    try:
+        # This works in regular terminal
+        sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+    except (AttributeError, io.UnsupportedOperation):
+        # Fallback for Jupyter Notebook or other environments
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, 
+                encoding='utf-8',
+                line_buffering=True
+            )
 
 load_dotenv()
 
-conn = psycopg2.connect(
-    host=os.getenv('DB_HOST'),
-    user=os.getenv('DB_USER'),
-    password=os.getenv('DB_PASSWORD'),
-    port=os.getenv('DB_PORT'),
-    dbname=os.getenv('DB_NAME')
-)
+def get_db_connection(statement_timeout_seconds=None):
+    """Create and return database connection
+    
+    Args:
+        statement_timeout_seconds: Optional timeout in seconds. 
+                                   Default None uses server default (2min in Supabase).
+                                   Example: 600 for 10 minutes
+    """
+    # Connect first without timeout options
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        port=os.getenv('DB_PORT'),
+        dbname=os.getenv('DB_NAME')
+    )
+    
+    # Then set timeout on the session (overrides Supabase default)
+    if statement_timeout_seconds:
+        cursor = conn.cursor()
+        cursor.execute(f"SET statement_timeout = '{statement_timeout_seconds}s'")
+        cursor.close()
+    
+    return conn
 
 def store_stock_data(symbol):
     """Store OHLC data for a single stock"""
@@ -47,8 +81,15 @@ def store_stock_data(symbol):
     cursor.close()
     print(f"✓ Stored {count} records for {symbol}")
 
-def get_all_us_tickers():
-    """Get all US stock tickers from NASDAQ"""
+def get_all_us_tickers(limit=None):
+    """Get all US stock tickers from NASDAQ
+    
+    Args:
+        limit: Optional int to limit number of symbols returned (for testing)
+    
+    Returns:
+        List of ticker symbols
+    """
     
     # NASDAQ traded stocks
     nasdaq_url = 'ftp://ftp.nasdaqtrader.com/SymbolDirectory/nasdaqlisted.txt'
@@ -67,8 +108,19 @@ def get_all_us_tickers():
     all_symbols = [s for s in all_symbols if isinstance(s, str) and '$' not in s and '.' not in s]
     all_symbols = [s for s in all_symbols if s != 'Symbol']  # Remove header
     
-    print(f"Found {len(all_symbols)} US stock tickers")
-    return sorted(all_symbols)
+    sorted_symbols = sorted(all_symbols)
+    
+    # Apply limit if specified
+    if limit and limit > 0:
+        sorted_symbols = sorted_symbols[:limit]
+        print(f"Limited to {len(sorted_symbols)} tickers (limit={limit})")
+    else:
+        print(f"Found {len(all_symbols)} US stock tickers")
+
+    with open('us_stock_tickers.txt', 'w') as f:
+        f.write('\n'.join(sorted_symbols))
+    
+    return sorted_symbols
 
 def load_stock_list(filename='us_stock_tickers.txt'):
     """Load stock symbols from file"""
@@ -86,27 +138,16 @@ def get_completed_symbols(conn):
     return completed
 
 def store_stock_data_safe(symbol, conn):
-    """
-    Store stock data with error handling
-    Returns: (success: bool, records: int, error: str)
-    """
+    """Store stock data using bulk insert"""
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="1y", auto_adjust=True)
+        df = ticker.history(period="max", auto_adjust=True)  # All available data
         
         if df.empty:
             return (False, 0, "No data available")
         
-        cursor = conn.cursor()
-        count = 0
-        
-        for date, row in df.iterrows():
-            cursor.execute("""
-                INSERT INTO yahoo_adjusted_stock_prices 
-                (timestamp, symbol, open, high, low, close, volume)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, timestamp) DO NOTHING
-            """, (
+        values = [
+            (
                 date.to_pydatetime(),
                 symbol,
                 float(row['Open']),
@@ -114,14 +155,30 @@ def store_stock_data_safe(symbol, conn):
                 float(row['Low']),
                 float(row['Close']),
                 int(row['Volume'])
-            ))
-            count += 1
+            )
+            for date, row in df.iterrows()
+        ]
+        
+        cursor = conn.cursor()
+        
+        execute_values(
+            cursor,
+            """
+            INSERT INTO yahoo_adjusted_stock_prices 
+            (timestamp, symbol, open, high, low, close, volume)
+            VALUES %s
+            ON CONFLICT (symbol, timestamp) DO NOTHING
+            """,
+            values,
+            page_size=5000  # Optimal for years of data
+        )
         
         conn.commit()
         cursor.close()
-        return (True, count, None)
+        return (True, len(values), None)
         
     except Exception as e:
+        conn.rollback()
         return (False, 0, str(e))
 
 def bulk_load_stocks(symbols, conn, resume=True):
@@ -157,7 +214,7 @@ def bulk_load_stocks(symbols, conn, resume=True):
     print(f"Log file: {log_file}\n")
     
     # Open log file
-    with open(log_file, 'w') as log:
+    with open(log_file, 'w', encoding='utf-8') as log:
         log.write(f"Bulk Load Started: {start_time}\n")
         log.write(f"Total symbols: {total}\n\n")
         
@@ -250,15 +307,11 @@ if __name__ == "__main__":
         symbols = load_stock_list('us_stock_tickers.txt')
         print(f"Loaded {len(symbols)} symbols from file")
         
-        # Ask for confirmation
-        response = input(f"\nReady to load {len(symbols)} stocks. This will take several hours. Continue? (yes/no): ")
         
-        if response.lower() == 'yes':
-            stats = bulk_load_stocks(symbols, conn, resume=True)
-            print(f"\n✓ Bulk load complete!")
-            print(f"Success rate: {stats['success']/stats['total']*100:.1f}%")
-        else:
-            print("Cancelled.")
+        stats = bulk_load_stocks(symbols, conn, resume=True)
+        print(f"\n✓ Bulk load complete!")
+        print(f"Success rate: {stats['success']/stats['total']*100:.1f}%")
+
     
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user. Progress has been saved.")

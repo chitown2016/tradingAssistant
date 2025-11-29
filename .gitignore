@@ -9,3 +9,27 @@ env/
 venv/
 ENV/
 .venv/
+
+# Logs
+logs/
+*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Generated files
+us_stock_tickers.txt
+daily_update_failed.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
