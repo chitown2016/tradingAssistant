@@ -20,9 +20,16 @@ apt install -y python3.11 python3.11-venv python3.11-distutils curl
 # Install pip for Python 3.11 using get-pip.py
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
-# Create symlinks for python3 and pip3 to point to 3.11
+# Create symlinks for python3 to point to 3.11
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.11 1
+
+# For pip, try to create symlink if pip3.11 exists
+if command -v pip3.11 >/dev/null 2>&1; then
+    update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.11 1
+else
+    # pip3.11 binary doesn't exist, but pip works via python3.11 -m pip
+    echo "Note: pip available via python3.11 -m pip"
+fi
 
 # Create application directory
 APP_DIR="/home/ubuntu/tradingAssistant"
