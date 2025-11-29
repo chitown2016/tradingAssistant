@@ -10,16 +10,47 @@ echo "=========================================="
 
 # Update system packages
 echo "Updating system packages..."
-sudo yum update -y
+sudo apt update
+sudo apt upgrade -y
 
-# Install Git, Python 3.11+ and pip
+# Install Git, Python 3.11+ and pip (Ubuntu)
 echo "Installing Git, Python 3.11 and pip..."
-sudo yum install -y git python3 python3-pip
+
+# Update package list
+sudo apt update
+
+# Install prerequisites
+sudo apt install -y git software-properties-common
+
+# Add deadsnakes PPA for Python 3.11
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt update
+
+# Install Python 3.11 and pip
+sudo apt install -y python3.11 python3.11-pip python3.11-venv
+
+# Create symlinks so python3 and pip3 point to 3.11
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+sudo update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.11 1
 
 # Verify installations
+echo ""
+echo "Verifying installations:"
 git --version
 python3 --version
 pip3 --version
+
+# Verify Python version is 3.11+
+PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}' | cut -d'.' -f1,2)
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
+
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
+    echo "⚠️  WARNING: Python version is $PYTHON_VERSION, not 3.11+"
+    echo "   The script may still work, but Python 3.11+ is recommended"
+else
+    echo "✓ Python 3.11+ confirmed: $PYTHON_VERSION"
+fi
 
 # Create application directory
 APP_DIR="$HOME/tradingAssistant"

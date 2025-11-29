@@ -9,8 +9,8 @@ set -e  # Exit on error
 
 if [ -z "$1" ]; then
     echo "Usage: $0 user@ec2-instance-ip [repo-url]"
-    echo "Example (update existing): $0 ec2-user@44.200.137.210"
-    echo "Example (first time): $0 ec2-user@44.200.137.210 https://github.com/username/tradingAssistant.git"
+    echo "Example (update existing): $0 ubuntu@44.200.137.210"
+    echo "Example (first time): $0 ubuntu@44.200.137.210 https://github.com/username/tradingAssistant.git"
     exit 1
 fi
 
@@ -29,6 +29,9 @@ if [ -n "$REPO_URL" ]; then
     
     echo "Setting up .env file..."
     ssh "$EC2_HOST" "cd $APP_DIR && if [ ! -f .env ]; then cp env.example .env && echo '⚠️  Please edit .env file with your database credentials'; fi"
+    
+    echo "Running initial setup (if setup_ec2.sh exists)..."
+    ssh "$EC2_HOST" "cd $APP_DIR && if [ -f setup_ec2.sh ]; then chmod +x setup_ec2.sh && ./setup_ec2.sh; fi"
 else
     # Update existing repository
     echo "Pulling latest changes from Git..."
