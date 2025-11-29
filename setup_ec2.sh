@@ -10,14 +10,16 @@ echo "=========================================="
 
 # Update system packages
 echo "Updating system packages..."
-sudo apt update
+# Install python3-apt first to avoid apt_pkg module errors
+sudo apt install -y python3-apt 2>/dev/null || true
+sudo apt update || true  # Ignore harmless cnf-update-db errors
 sudo apt upgrade -y
 
 # Install Git, Python 3.11+ and pip (Ubuntu)
 echo "Installing Git, Python 3.11 and pip..."
 
-# Update package list
-sudo apt update
+# Update package list (ignore harmless apt_pkg errors)
+sudo apt update || true
 
 # Install prerequisites
 sudo apt install -y git software-properties-common

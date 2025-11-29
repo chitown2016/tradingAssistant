@@ -4,7 +4,9 @@
 # This will run automatically when the instance starts
 
 # Update system packages
-apt update
+# Install python3-apt first to avoid apt_pkg module errors
+apt install -y python3-apt 2>/dev/null || true
+apt update || true  # Ignore harmless cnf-update-db errors
 apt upgrade -y
 
 # Install prerequisites
@@ -12,7 +14,7 @@ apt install -y git software-properties-common
 
 # Add deadsnakes PPA for Python 3.11
 add-apt-repository -y ppa:deadsnakes/ppa
-apt update
+apt update || true  # Ignore harmless apt_pkg errors
 
 # Install Python 3.11
 apt install -y python3.11 python3.11-venv python3.11-distutils curl
