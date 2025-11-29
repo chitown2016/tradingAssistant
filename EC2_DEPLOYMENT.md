@@ -43,6 +43,8 @@ Before deploying, make sure your code is in a Git repository:
 
 ### 2. Initial Setup (One-time)
 
+**Here Ive used the Option C
+
 **Option A: Use EC2 User Data (Recommended - No SCP needed)**
 
 When launching your EC2 instance, paste the contents of `ec2_user_data.sh` into:

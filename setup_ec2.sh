@@ -26,8 +26,12 @@ sudo apt install -y git software-properties-common
 sudo add-apt-repository -y ppa:deadsnakes/ppa
 sudo apt update
 
-# Install Python 3.11 and pip
-sudo apt install -y python3.11 python3.11-pip python3.11-venv
+# Install Python 3.11
+sudo apt install -y python3.11 python3.11-venv python3.11-distutils curl
+
+# Install pip for Python 3.11 using get-pip.py
+echo "Installing pip for Python 3.11..."
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
 # Create symlinks so python3 and pip3 point to 3.11
 sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
