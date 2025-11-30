@@ -566,39 +566,38 @@ def daily_update_stocks(limit=None):
             log.flush()  # Flush incremental stats
         else:
             log = open(log_file, 'w', encoding='utf-8')
-            if not incremental_processing_used:
-                log.write(f"Daily Update Started: {start_time}\n")
-                log.write(f"Total symbols: {len(all_symbols)}\n")
-                log.write(f"New tickers: {len(new_tickers)}\n")
-                log.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
-                log.write(f"5-day tickers: {len(tickers_5d)}\n")
-                if limit:
-                    log.write(f"TEST MODE: Limited to {limit} symbols\n")
-                log.write("\n")
-            
-            # Initialize stats - include incremental stats if used
-            if incremental_processing_used:
-                stats = {
-                    'new_success': incremental_stats['new_success'],
-                    'new_failed': 0,
-                    'max_success': incremental_stats['max_success'],
-                    'max_failed': 0,
-                    '5d_success': 0,
-                    '5d_failed': 0,
-                    'total_records': incremental_stats['new_records'] + incremental_stats['max_records'],
-                    'failed_tickers': []
-                }
-            else:
-                stats = {
-                    'new_success': 0,
-                    'new_failed': 0,
-                    'max_success': 0,
-                    'max_failed': 0,
-                    '5d_success': 0,
-                    '5d_failed': 0,
-                    'total_records': 0,
-                    'failed_tickers': []
-                }
+            log.write(f"Daily Update Started: {start_time}\n")
+            log.write(f"Total symbols: {len(all_symbols)}\n")
+            log.write(f"New tickers: {len(new_tickers)}\n")
+            log.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
+            log.write(f"5-day tickers: {len(tickers_5d)}\n")
+            if limit:
+                log.write(f"TEST MODE: Limited to {limit} symbols\n")
+            log.write("\n")
+        
+        # Initialize stats - include incremental stats if used (MUST be outside else block!)
+        if incremental_processing_used:
+            stats = {
+                'new_success': incremental_stats['new_success'],
+                'new_failed': 0,
+                'max_success': incremental_stats['max_success'],
+                'max_failed': 0,
+                '5d_success': 0,
+                '5d_failed': 0,
+                'total_records': incremental_stats['new_records'] + incremental_stats['max_records'],
+                'failed_tickers': []
+            }
+        else:
+            stats = {
+                'new_success': 0,
+                'new_failed': 0,
+                'max_success': 0,
+                'max_failed': 0,
+                '5d_success': 0,
+                '5d_failed': 0,
+                'total_records': 0,
+                'failed_tickers': []
+            }
             
             # Process new tickers (BATCHED BULK INSERT)
             # Skip if already processed incrementally
