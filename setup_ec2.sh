@@ -10,7 +10,7 @@ echo "=========================================="
 
 # Update system packages
 echo "Updating system packages..."
-sudo apt update
+sudo apt update || true  # Ignore harmless command-not-found hook errors
 sudo apt upgrade -y
 
 # Install Git and pip (Python 3.10 is already installed)
