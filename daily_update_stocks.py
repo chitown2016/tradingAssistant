@@ -76,7 +76,75 @@ def normalize_timestamp(dt):
         return dt.replace(tzinfo=None)
     return dt
 
-def download_data_in_batches(tickers, period='max', batch_size=200, delay=2):
+def process_incremental_batch(batch_data, batch_tickers, new_tickers, max_tickers, conn, log):
+    """Process a single batch of downloaded data incrementally (for 'max' period to save memory)
+    
+    Args:
+        batch_data: DataFrame with downloaded data for this batch
+        batch_tickers: List of ticker symbols in this batch
+        new_tickers: Set of new ticker symbols
+        max_tickers: Set of max ticker symbols (corporate actions)
+        conn: Database connection
+        log: Log file handle
+    
+    Returns:
+        Dictionary with stats: {'new_success': int, 'new_records': int, 'max_success': int, 'max_records': int}
+    """
+    stats = {'new_success': 0, 'new_records': 0, 'max_success': 0, 'max_records': 0}
+    
+    # Separate batch tickers into new and max
+    batch_new = [s for s in batch_tickers if s in new_tickers]
+    batch_max = [s for s in batch_tickers if s in max_tickers]
+    
+    # Process new tickers from this batch
+    if batch_new:
+        for symbol in batch_new:
+            try:
+                # Extract data for this symbol
+                if len(batch_data.columns.levels[0]) > 1 if hasattr(batch_data.columns, 'levels') else False:
+                    if symbol not in batch_data.columns.levels[0]:
+                        continue
+                    df = batch_data[symbol]
+                else:
+                    df = batch_data
+                
+                if df.empty or df.dropna().empty:
+                    continue
+                
+                # Process using existing insert_ticker_data function
+                success, records = insert_ticker_data(conn, symbol, df, log)
+                if success:
+                    stats['new_success'] += 1
+                    stats['new_records'] += records
+            except Exception as e:
+                log.write(f"  ✗ {symbol} (new, incremental): {e}\n")
+    
+    # Process max tickers from this batch
+    if batch_max:
+        for symbol in batch_max:
+            try:
+                # Extract data for this symbol
+                if len(batch_data.columns.levels[0]) > 1 if hasattr(batch_data.columns, 'levels') else False:
+                    if symbol not in batch_data.columns.levels[0]:
+                        continue
+                    df = batch_data[symbol]
+                else:
+                    df = batch_data
+                
+                if df.empty or df.dropna().empty:
+                    continue
+                
+                # Process using existing delete_and_insert_ticker_data function
+                success, records = delete_and_insert_ticker_data(conn, symbol, df, log)
+                if success:
+                    stats['max_success'] += 1
+                    stats['max_records'] += records
+            except Exception as e:
+                log.write(f"  ✗ {symbol} (max, incremental): {e}\n")
+    
+    return stats
+
+def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, process_callback=None):
     """Download data in batches to avoid rate limiting
     
     Args:
@@ -84,13 +152,53 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2):
         period: '5d', 'max', etc.
         batch_size: Number of tickers per batch (default 200)
         delay: Seconds to wait between batches (default 2)
+        process_callback: Optional function(batch_data, batch_tickers) to process each batch immediately.
+                         If provided and period=='max', batches are processed incrementally instead of combined.
     
     Returns:
-        Combined DataFrame with all ticker data
+        Combined DataFrame with all ticker data (or None if process_callback used)
     """
     if not tickers:
         return None
     
+    # For 'max' period with callback, process incrementally to save memory
+    if period == 'max' and process_callback is not None:
+        print(f"  Downloading {len(tickers)} tickers in batches of {batch_size} (incremental processing)...")
+        total_batches = (len(tickers) + batch_size - 1) // batch_size
+        
+        for i in range(0, len(tickers), batch_size):
+            batch = tickers[i:i + batch_size]
+            batch_num = (i // batch_size) + 1
+            
+            print(f"    Batch {batch_num}/{total_batches}: Downloading {len(batch)} tickers...")
+            
+            try:
+                batch_data = yf.download(
+                    batch,
+                    period=period,
+                    group_by='ticker',
+                    auto_adjust=True,
+                    threads=True
+                )
+                
+                if batch_data is not None and not batch_data.empty:
+                    # Process immediately via callback
+                    process_callback(batch_data, batch)
+                    print(f"    ✓ Batch {batch_num} downloaded and processed")
+                else:
+                    print(f"    ⚠ Batch {batch_num} returned no data")
+                    
+            except Exception as e:
+                print(f"    ✗ Batch {batch_num} error: {e}")
+            
+            # Delay between batches to avoid rate limiting
+            if i + batch_size < len(tickers):
+                time.sleep(delay)
+        
+        # Return None to indicate incremental processing was used
+        return None
+    
+    # Original behavior: combine all batches (for shorter periods or no callback)
     print(f"  Downloading {len(tickers)} tickers in batches of {batch_size}...")
     
     all_data = []
@@ -365,57 +473,128 @@ def daily_update_stocks(limit=None):
     # Download max data (new + corporate action tickers)
     max_download_tickers = new_tickers + max_tickers
     max_data = None
+    incremental_stats = {'new_success': 0, 'new_records': 0, 'max_success': 0, 'max_records': 0}
+    incremental_processing_used = False
     
     if max_download_tickers:
         print(f"\n  Downloading MAX history for {len(max_download_tickers)} tickers...")
         try:
+            # For 'max' period, use incremental processing to avoid memory issues
+            # Open connection and log file early for incremental processing
+            conn_inc = get_db_connection(statement_timeout_seconds=600)
+            log_inc = open(log_file, 'w', encoding='utf-8')
+            log_inc.write(f"Daily Update Started: {start_time}\n")
+            log_inc.write(f"Total symbols: {len(all_symbols)}\n")
+            log_inc.write(f"New tickers: {len(new_tickers)}\n")
+            log_inc.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
+            log_inc.write(f"5-day tickers: {len(tickers_5d)}\n")
+            if limit:
+                log_inc.write(f"TEST MODE: Limited to {limit} symbols\n")
+            log_inc.write("\n")
+            
+            # Create callback to process each batch immediately
+            def process_max_batch(batch_data, batch_tickers):
+                nonlocal incremental_stats
+                # Process this batch incrementally
+                batch_stats = process_incremental_batch(
+                    batch_data, batch_tickers, 
+                    set(new_tickers), set(max_tickers),
+                    conn_inc, log_inc
+                )
+                # Accumulate stats
+                incremental_stats['new_success'] += batch_stats['new_success']
+                incremental_stats['new_records'] += batch_stats['new_records']
+                incremental_stats['max_success'] += batch_stats['max_success']
+                incremental_stats['max_records'] += batch_stats['max_records']
+            
             max_data = download_data_in_batches(
                 max_download_tickers,
                 period='max',
                 batch_size=200,
-                delay=2
+                delay=2,
+                process_callback=process_max_batch
             )
-            if max_data is not None:
-                print(f"  ✓ Downloaded MAX data")
+            
+            if max_data is None:
+                # Incremental processing was used
+                incremental_processing_used = True
+                print(f"  ✓ Downloaded and processed MAX data incrementally")
+                print(f"    New tickers: {incremental_stats['new_success']} processed, {incremental_stats['new_records']:,} records")
+                print(f"    Max tickers: {incremental_stats['max_success']} processed, {incremental_stats['max_records']:,} records")
+                # Keep connection and log open for 5d processing
+                conn = conn_inc
+                log_file_handle = log_inc
             else:
-                print(f"  ⚠ No MAX data downloaded")
+                print(f"  ✓ Downloaded MAX data")
+                # Close incremental connection/log, will reopen for bulk processing
+                conn_inc.close()
+                log_inc.close()
         except Exception as e:
             print(f"  ✗ Error downloading MAX data: {e}")
+            if 'conn_inc' in locals():
+                conn_inc.close()
+            if 'log_inc' in locals():
+                log_inc.close()
     
     # Use cached 5-day data (already downloaded during categorization!)
     if tickers_5d:
         print(f"\n  ✓ Using cached 5-day data for {len(tickers_5d)} tickers (already downloaded)")
     
-    # Step 4: Reopen connection for database updates
+    # Step 4: Database updates
     print("\n[4/4] Updating database...")
-    conn = get_db_connection(statement_timeout_seconds=600)  # Fresh connection!
+    
+    # If incremental processing was used, connection and log are already open
+    if not incremental_processing_used:
+        conn = get_db_connection(statement_timeout_seconds=600)  # Fresh connection!
     
     try:
-        
-        # Open log file for writing
-        with open(log_file, 'w', encoding='utf-8') as log:
-            log.write(f"Daily Update Started: {start_time}\n")
-            log.write(f"Total symbols: {len(all_symbols)}\n")
-            log.write(f"New tickers: {len(new_tickers)}\n")
-            log.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
-            log.write(f"5-day tickers: {len(tickers_5d)}\n")
-            if limit:
-                log.write(f"TEST MODE: Limited to {limit} symbols\n")
+        # Open log file for writing (if not already open from incremental processing)
+        if incremental_processing_used:
+            log = log_file_handle
+            # Log incremental stats
+            log.write(f"\nIncremental Processing Stats:\n")
+            log.write(f"  New tickers: {incremental_stats['new_success']} processed, {incremental_stats['new_records']:,} records\n")
+            log.write(f"  Max tickers: {incremental_stats['max_success']} processed, {incremental_stats['max_records']:,} records\n")
             log.write("\n")
+        else:
+            log = open(log_file, 'w', encoding='utf-8')
+            if not incremental_processing_used:
+                log.write(f"Daily Update Started: {start_time}\n")
+                log.write(f"Total symbols: {len(all_symbols)}\n")
+                log.write(f"New tickers: {len(new_tickers)}\n")
+                log.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
+                log.write(f"5-day tickers: {len(tickers_5d)}\n")
+                if limit:
+                    log.write(f"TEST MODE: Limited to {limit} symbols\n")
+                log.write("\n")
             
-            stats = {
-                'new_success': 0,
-                'new_failed': 0,
-                'max_success': 0,
-                'max_failed': 0,
-                '5d_success': 0,
-                '5d_failed': 0,
-                'total_records': 0,
-                'failed_tickers': []
-            }
+            # Initialize stats - include incremental stats if used
+            if incremental_processing_used:
+                stats = {
+                    'new_success': incremental_stats['new_success'],
+                    'new_failed': 0,
+                    'max_success': incremental_stats['max_success'],
+                    'max_failed': 0,
+                    '5d_success': 0,
+                    '5d_failed': 0,
+                    'total_records': incremental_stats['new_records'] + incremental_stats['max_records'],
+                    'failed_tickers': []
+                }
+            else:
+                stats = {
+                    'new_success': 0,
+                    'new_failed': 0,
+                    'max_success': 0,
+                    'max_failed': 0,
+                    '5d_success': 0,
+                    '5d_failed': 0,
+                    'total_records': 0,
+                    'failed_tickers': []
+                }
             
             # Process new tickers (BATCHED BULK INSERT)
-            if new_tickers and max_data is not None:
+            # Skip if already processed incrementally
+            if new_tickers and max_data is not None and not incremental_processing_used:
                 print(f"\n  Processing {len(new_tickers)} new tickers (BATCHED BULK INSERT)...")
                 try:
                     success_count, total_records = batched_bulk_insert_new_tickers(conn, new_tickers, max_data, log, batch_size=100)
@@ -442,7 +621,8 @@ def daily_update_stocks(limit=None):
                             log.write(f"  ✗ {symbol} (new): {e2}\n")
             
             # Process max tickers (BATCHED BULK DELETE + INSERT)
-            if max_tickers and max_data is not None:
+            # Skip if already processed incrementally
+            if max_tickers and max_data is not None and not incremental_processing_used:
                 print(f"\n  Processing {len(max_tickers)} tickers with corporate actions (BATCHED BULK DELETE + INSERT)...")
                 try:
                     success_count, total_records = batched_bulk_delete_and_insert_max_tickers(conn, max_tickers, max_data, log, batch_size=50)
@@ -551,6 +731,12 @@ Total:
     
     finally:
         conn.close()
+        # Close log file if it was opened (not using context manager)
+        if 'log' in locals() and hasattr(log, 'close'):
+            try:
+                log.close()
+            except:
+                pass
         print("\nConnection closed.")
 
 def batched_bulk_insert_new_tickers(conn, new_tickers, max_data, log, batch_size=100):
