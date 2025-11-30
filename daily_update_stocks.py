@@ -560,6 +560,9 @@ def daily_update_stocks(limit=None):
             log.write(f"  New tickers: {incremental_stats['new_success']} processed, {incremental_stats['new_records']:,} records\n")
             log.write(f"  Max tickers: {incremental_stats['max_success']} processed, {incremental_stats['max_records']:,} records\n")
             log.write("\n")
+            log.write(f"[4/4] Updating database...\n")  # Log this step
+            log.write(f"  Checking 5-day tickers: {len(tickers_5d) if tickers_5d else 0} tickers\n")
+            log.write(f"  data_5d_cached is {'None' if data_5d_cached is None else 'available'}\n")
             log.flush()  # Flush incremental stats
         else:
             log = open(log_file, 'w', encoding='utf-8')
@@ -654,6 +657,11 @@ def daily_update_stocks(limit=None):
                             log.write(f"  ✗ {symbol} (max): {e2}\n")
             
             # Process 5-day tickers (BATCHED BULK UPSERT) - use cached data
+            log.write(f"\n--- Starting 5-day ticker processing ---\n")
+            log.write(f"  tickers_5d count: {len(tickers_5d) if tickers_5d else 0}\n")
+            log.write(f"  data_5d_cached is None: {data_5d_cached is None}\n")
+            log.flush()
+            
             if tickers_5d:
                 if data_5d_cached is not None:
                     print(f"\n  Processing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...")
@@ -691,12 +699,18 @@ def daily_update_stocks(limit=None):
                     print(f"     Skipping 5-day ticker processing")
                     log.write(f"\n⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None\n")
                     log.write(f"  Skipping 5-day ticker processing\n")
+                    log.write(f"  This means data_5d_cached was not set during categorization step\n")
                     log.flush()
                     stats['5d_failed'] = len(tickers_5d)
                     for symbol in tickers_5d:
                         stats['failed_tickers'].append((symbol, '5d', 'data_5d_cached is None'))
+            else:
+                log.write(f"  No 5-day tickers to process (tickers_5d is empty or None)\n")
+                log.flush()
             
             # Final summary - always write this even if there were errors
+            log.write(f"\n--- Preparing final summary ---\n")
+            log.flush()
             try:
                 end_time = datetime.now()
                 elapsed = (end_time - start_time).total_seconds()
@@ -762,6 +776,23 @@ Total:
             
             print(f"✓ Log saved to '{log_file}'")
             log.flush()  # Final flush before closing
+    
+    except Exception as e:
+        # Catch any unhandled exceptions in the database update section
+        error_msg = f"\n\n{'='*70}\nFATAL ERROR in database update section:\n{str(e)}\n{'='*70}\n"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        
+        # Try to log the error
+        if 'log' in locals() and hasattr(log, 'write'):
+            try:
+                log.write(error_msg)
+                log.write("\nTraceback:\n")
+                traceback.print_exc(file=log)
+                log.flush()
+            except:
+                pass
     
     finally:
         # Ensure log is flushed and closed before closing connection
