@@ -598,127 +598,127 @@ def daily_update_stocks(limit=None):
                 'total_records': 0,
                 'failed_tickers': []
             }
-            
-            # Process new tickers (BATCHED BULK INSERT)
-            # Skip if already processed incrementally
-            if new_tickers and max_data is not None and not incremental_processing_used:
-                print(f"\n  Processing {len(new_tickers)} new tickers (BATCHED BULK INSERT)...")
-                try:
-                    success_count, total_records = batched_bulk_insert_new_tickers(conn, new_tickers, max_data, log, batch_size=100)
-                    stats['new_success'] = success_count
-                    stats['total_records'] += total_records
-                    print(f"  ✓ Successfully processed {success_count} new tickers with {total_records:,} records")
-                except Exception as e:
-                    print(f"  ✗ Batched bulk insert failed: {e}")
-                    log.write(f"  ✗ Batched bulk insert (new) failed: {e}\n")
-                    # Fallback to individual processing
-                    print(f"  Falling back to individual processing...")
-                    for symbol in new_tickers:
-                        try:
-                            success, records = insert_ticker_data(conn, symbol, max_data, log)
-                            if success:
-                                stats['new_success'] += 1
-                                stats['total_records'] += records
-                            else:
-                                stats['new_failed'] += 1
-                                stats['failed_tickers'].append((symbol, 'new', 'No data available'))
-                        except Exception as e2:
+        
+        # Process new tickers (BATCHED BULK INSERT)
+        # Skip if already processed incrementally
+        if new_tickers and max_data is not None and not incremental_processing_used:
+            print(f"\n  Processing {len(new_tickers)} new tickers (BATCHED BULK INSERT)...")
+            try:
+                success_count, total_records = batched_bulk_insert_new_tickers(conn, new_tickers, max_data, log, batch_size=100)
+                stats['new_success'] = success_count
+                stats['total_records'] += total_records
+                print(f"  ✓ Successfully processed {success_count} new tickers with {total_records:,} records")
+            except Exception as e:
+                print(f"  ✗ Batched bulk insert failed: {e}")
+                log.write(f"  ✗ Batched bulk insert (new) failed: {e}\n")
+                # Fallback to individual processing
+                print(f"  Falling back to individual processing...")
+                for symbol in new_tickers:
+                    try:
+                        success, records = insert_ticker_data(conn, symbol, max_data, log)
+                        if success:
+                            stats['new_success'] += 1
+                            stats['total_records'] += records
+                        else:
                             stats['new_failed'] += 1
-                            stats['failed_tickers'].append((symbol, 'new', str(e2)))
-                            log.write(f"  ✗ {symbol} (new): {e2}\n")
-            
-            # Process max tickers (BATCHED BULK DELETE + INSERT)
-            # Skip if already processed incrementally
-            if max_tickers and max_data is not None and not incremental_processing_used:
-                print(f"\n  Processing {len(max_tickers)} tickers with corporate actions (BATCHED BULK DELETE + INSERT)...")
+                            stats['failed_tickers'].append((symbol, 'new', 'No data available'))
+                    except Exception as e2:
+                        stats['new_failed'] += 1
+                        stats['failed_tickers'].append((symbol, 'new', str(e2)))
+                        log.write(f"  ✗ {symbol} (new): {e2}\n")
+        
+        # Process max tickers (BATCHED BULK DELETE + INSERT)
+        # Skip if already processed incrementally
+        if max_tickers and max_data is not None and not incremental_processing_used:
+            print(f"\n  Processing {len(max_tickers)} tickers with corporate actions (BATCHED BULK DELETE + INSERT)...")
+            try:
+                success_count, total_records = batched_bulk_delete_and_insert_max_tickers(conn, max_tickers, max_data, log, batch_size=50)
+                stats['max_success'] = success_count
+                stats['total_records'] += total_records
+                print(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records")
+            except Exception as e:
+                print(f"  ✗ Batched bulk delete+insert failed: {e}")
+                log.write(f"  ✗ Batched bulk delete+insert (max) failed: {e}\n")
+                # Fallback to individual processing
+                print(f"  Falling back to individual processing...")
+                for symbol in max_tickers:
+                    try:
+                        success, records = delete_and_insert_ticker_data(conn, symbol, max_data, log)
+                        if success:
+                            stats['max_success'] += 1
+                            stats['total_records'] += records
+                        else:
+                            stats['max_failed'] += 1
+                            stats['failed_tickers'].append((symbol, 'max', 'No data available'))
+                    except Exception as e2:
+                        stats['max_failed'] += 1
+                        stats['failed_tickers'].append((symbol, 'max', str(e2)))
+                        log.write(f"  ✗ {symbol} (max): {e2}\n")
+        
+        # Process 5-day tickers (BATCHED BULK UPSERT) - use cached data
+        log.write(f"\n--- Starting 5-day ticker processing ---\n")
+        log.write(f"  tickers_5d count: {len(tickers_5d) if tickers_5d else 0}\n")
+        log.write(f"  data_5d_cached is None: {data_5d_cached is None}\n")
+        log.flush()
+        
+        if tickers_5d:
+            if data_5d_cached is not None:
+                print(f"\n  Processing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...")
+                log.write(f"\nProcessing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...\n")
+                log.flush()
                 try:
-                    success_count, total_records = batched_bulk_delete_and_insert_max_tickers(conn, max_tickers, max_data, log, batch_size=50)
-                    stats['max_success'] = success_count
+                    success_count, total_records = batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch_size=500)
+                    stats['5d_success'] = success_count
                     stats['total_records'] += total_records
                     print(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records")
+                    log.write(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records\n")
+                    log.flush()
                 except Exception as e:
-                    print(f"  ✗ Batched bulk delete+insert failed: {e}")
-                    log.write(f"  ✗ Batched bulk delete+insert (max) failed: {e}\n")
+                    print(f"  ✗ Batched bulk upsert failed: {e}")
+                    log.write(f"  ✗ Batched bulk upsert (5d) failed: {e}\n")
+                    log.flush()
                     # Fallback to individual processing
                     print(f"  Falling back to individual processing...")
-                    for symbol in max_tickers:
+                    for symbol in tickers_5d:
                         try:
-                            success, records = delete_and_insert_ticker_data(conn, symbol, max_data, log)
+                            success, records = upsert_ticker_data(conn, symbol, data_5d_cached, log)
                             if success:
-                                stats['max_success'] += 1
+                                stats['5d_success'] += 1
                                 stats['total_records'] += records
                             else:
-                                stats['max_failed'] += 1
-                                stats['failed_tickers'].append((symbol, 'max', 'No data available'))
-                        except Exception as e2:
-                            stats['max_failed'] += 1
-                            stats['failed_tickers'].append((symbol, 'max', str(e2)))
-                            log.write(f"  ✗ {symbol} (max): {e2}\n")
-            
-            # Process 5-day tickers (BATCHED BULK UPSERT) - use cached data
-            log.write(f"\n--- Starting 5-day ticker processing ---\n")
-            log.write(f"  tickers_5d count: {len(tickers_5d) if tickers_5d else 0}\n")
-            log.write(f"  data_5d_cached is None: {data_5d_cached is None}\n")
-            log.flush()
-            
-            if tickers_5d:
-                if data_5d_cached is not None:
-                    print(f"\n  Processing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...")
-                    log.write(f"\nProcessing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...\n")
-                    log.flush()
-                    try:
-                        success_count, total_records = batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch_size=500)
-                        stats['5d_success'] = success_count
-                        stats['total_records'] += total_records
-                        print(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records")
-                        log.write(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records\n")
-                        log.flush()
-                    except Exception as e:
-                        print(f"  ✗ Batched bulk upsert failed: {e}")
-                        log.write(f"  ✗ Batched bulk upsert (5d) failed: {e}\n")
-                        log.flush()
-                        # Fallback to individual processing
-                        print(f"  Falling back to individual processing...")
-                        for symbol in tickers_5d:
-                            try:
-                                success, records = upsert_ticker_data(conn, symbol, data_5d_cached, log)
-                                if success:
-                                    stats['5d_success'] += 1
-                                    stats['total_records'] += records
-                                else:
-                                    stats['5d_failed'] += 1
-                                    stats['failed_tickers'].append((symbol, '5d', 'No data available'))
-                            except Exception as e2:
                                 stats['5d_failed'] += 1
-                                stats['failed_tickers'].append((symbol, '5d', str(e2)))
-                                log.write(f"  ✗ {symbol} (5d): {e2}\n")
-                else:
-                    # data_5d_cached is None - log this issue
-                    print(f"\n  ⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None")
-                    print(f"     Skipping 5-day ticker processing")
-                    log.write(f"\n⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None\n")
-                    log.write(f"  Skipping 5-day ticker processing\n")
-                    log.write(f"  This means data_5d_cached was not set during categorization step\n")
-                    log.flush()
-                    stats['5d_failed'] = len(tickers_5d)
-                    for symbol in tickers_5d:
-                        stats['failed_tickers'].append((symbol, '5d', 'data_5d_cached is None'))
+                                stats['failed_tickers'].append((symbol, '5d', 'No data available'))
+                        except Exception as e2:
+                            stats['5d_failed'] += 1
+                            stats['failed_tickers'].append((symbol, '5d', str(e2)))
+                            log.write(f"  ✗ {symbol} (5d): {e2}\n")
             else:
-                log.write(f"  No 5-day tickers to process (tickers_5d is empty or None)\n")
+                # data_5d_cached is None - log this issue
+                print(f"\n  ⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None")
+                print(f"     Skipping 5-day ticker processing")
+                log.write(f"\n⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None\n")
+                log.write(f"  Skipping 5-day ticker processing\n")
+                log.write(f"  This means data_5d_cached was not set during categorization step\n")
                 log.flush()
-            
-            # Final summary - always write this even if there were errors
-            log.write(f"\n--- Preparing final summary ---\n")
+                stats['5d_failed'] = len(tickers_5d)
+                for symbol in tickers_5d:
+                    stats['failed_tickers'].append((symbol, '5d', 'data_5d_cached is None'))
+        else:
+            log.write(f"  No 5-day tickers to process (tickers_5d is empty or None)\n")
             log.flush()
-            try:
-                end_time = datetime.now()
-                elapsed = (end_time - start_time).total_seconds()
-                
-                total_success = stats['new_success'] + stats['max_success'] + stats['5d_success']
-                total_failed = stats['new_failed'] + stats['max_failed'] + stats['5d_failed']
-                total_processed = total_success + total_failed
-                
-                summary = f"""
+        
+        # Final summary - always write this even if there were errors
+        log.write(f"\n--- Preparing final summary ---\n")
+        log.flush()
+        try:
+            end_time = datetime.now()
+            elapsed = (end_time - start_time).total_seconds()
+            
+            total_success = stats['new_success'] + stats['max_success'] + stats['5d_success']
+            total_failed = stats['new_failed'] + stats['max_failed'] + stats['5d_failed']
+            total_processed = total_success + total_failed
+            
+            summary = f"""
 {'='*70}
 DAILY UPDATE COMPLETE!
 {'='*70}
@@ -745,36 +745,36 @@ Total:
   Total records inserted/updated: {stats['total_records']:,}
 {'='*70}
 """
-                print(summary)
-                log.write(summary)
-                log.flush()  # Flush summary immediately
-            except Exception as e:
-                # Even if summary generation fails, try to write something
-                error_msg = f"\n\nERROR generating final summary: {e}\n"
-                print(error_msg)
-                try:
-                    log.write(error_msg)
-                    log.flush()
-                except:
-                    pass
-            
-            # Write failed tickers
-            if stats['failed_tickers']:
-                log.write("\n\nFailed Tickers:\n")
-                log.write("="*70 + "\n")
-                for symbol, category, error in stats['failed_tickers']:
-                    log.write(f"{symbol} ({category}): {error}\n")
+            print(summary)
+            log.write(summary)
+            log.flush()  # Flush summary immediately
+        except Exception as e:
+            # Even if summary generation fails, try to write something
+            error_msg = f"\n\nERROR generating final summary: {e}\n"
+            print(error_msg)
+            try:
+                log.write(error_msg)
                 log.flush()
-                
-                # Save to file for retry
-                failed_tickers_file = os.path.join(logs_dir, 'daily_update_failed.txt')
-                with open(failed_tickers_file, 'w') as f:
-                    for symbol, category, error in stats['failed_tickers']:
-                        f.write(f"{symbol}\n")
-                print(f"\n✓ Failed tickers saved to '{failed_tickers_file}'")
+            except:
+                pass
+        
+        # Write failed tickers
+        if stats['failed_tickers']:
+            log.write("\n\nFailed Tickers:\n")
+            log.write("="*70 + "\n")
+            for symbol, category, error in stats['failed_tickers']:
+                log.write(f"{symbol} ({category}): {error}\n")
+            log.flush()
             
-            print(f"✓ Log saved to '{log_file}'")
-            log.flush()  # Final flush before closing
+            # Save to file for retry
+            failed_tickers_file = os.path.join(logs_dir, 'daily_update_failed.txt')
+            with open(failed_tickers_file, 'w') as f:
+                for symbol, category, error in stats['failed_tickers']:
+                    f.write(f"{symbol}\n")
+            print(f"\n✓ Failed tickers saved to '{failed_tickers_file}'")
+        
+        print(f"✓ Log saved to '{log_file}'")
+        log.flush()  # Final flush before closing
     
     except Exception as e:
         # Catch any unhandled exceptions in the database update section
