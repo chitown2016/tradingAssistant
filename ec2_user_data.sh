@@ -4,34 +4,11 @@
 # This will run automatically when the instance starts
 
 # Update system packages
-# Install python3-apt first to avoid apt_pkg module errors
-apt install -y python3-apt 2>/dev/null || true
-apt update || true  # Ignore harmless cnf-update-db errors
+apt update
 apt upgrade -y
 
-# Install prerequisites
-apt install -y git software-properties-common
-
-# Add deadsnakes PPA for Python 3.11
-add-apt-repository -y ppa:deadsnakes/ppa
-apt update || true  # Ignore harmless apt_pkg errors
-
-# Install Python 3.11
-apt install -y python3.11 python3.11-venv python3.11-distutils curl
-
-# Install pip for Python 3.11 using get-pip.py
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
-
-# Create symlinks for python3 to point to 3.11
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-
-# For pip, try to create symlink if pip3.11 exists
-if command -v pip3.11 >/dev/null 2>&1; then
-    update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.11 1
-else
-    # pip3.11 binary doesn't exist, but pip works via python3.11 -m pip
-    echo "Note: pip available via python3.11 -m pip"
-fi
+# Install Git and pip (Python 3.10 is already installed)
+apt install -y git python3-pip
 
 # Create application directory
 APP_DIR="/home/ubuntu/tradingAssistant"

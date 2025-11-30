@@ -10,71 +10,30 @@ echo "=========================================="
 
 # Update system packages
 echo "Updating system packages..."
-# Install python3-apt first to avoid apt_pkg module errors
-sudo apt install -y python3-apt 2>/dev/null || true
-sudo apt update || true  # Ignore harmless cnf-update-db errors
+sudo apt update
 sudo apt upgrade -y
 
-# Install Git, Python 3.11+ and pip (Ubuntu)
-echo "Installing Git, Python 3.11 and pip..."
-
-# Update package list (ignore harmless apt_pkg errors)
-sudo apt update || true
-
-# Install prerequisites
-sudo apt install -y git software-properties-common
-
-# Add deadsnakes PPA for Python 3.11
-sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt update
-
-# Install Python 3.11
-sudo apt install -y python3.11 python3.11-venv python3.11-distutils curl
-
-# Install pip for Python 3.11 using get-pip.py
-echo "Installing pip for Python 3.11..."
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
-
-# Create symlinks so python3 points to 3.11
-sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-
-# For pip, try to create symlink if pip3.11 exists, otherwise use python3 -m pip
-# When pip is installed via get-pip.py, it may not create /usr/bin/pip3.11
-# Check if pip3.11 exists, if not, we'll use python3.11 -m pip (which always works)
-if command -v pip3.11 >/dev/null 2>&1; then
-    sudo update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3.11 1
-    echo "✓ Pip symlink created using pip3.11 binary"
-else
-    # pip3.11 binary doesn't exist, but pip works via python3.11 -m pip
-    # Create a wrapper or just document that pip3 works via python3 symlink
-    echo "⚠️  pip3.11 binary not found, but pip is available via: python3.11 -m pip"
-    echo "   The 'pip3' command will work via 'python3 -m pip' (python3 points to 3.11)"
-fi
+# Install Git and pip (Python 3.10 is already installed)
+echo "Installing Git and pip..."
+sudo apt install -y git python3-pip
 
 # Verify installations
 echo ""
 echo "Verifying installations:"
 git --version
 python3 --version
+pip3 --version
 
-# Verify pip (try pip3 first, fallback to python3 -m pip)
-if command -v pip3 >/dev/null 2>&1; then
-    pip3 --version
-else
-    python3 -m pip --version
-    echo "Note: Use 'python3 -m pip' instead of 'pip3' for package management"
-fi
-
-# Verify Python version is 3.11+
+# Verify Python version is 3.10+
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}' | cut -d'.' -f1,2)
 PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
 PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
 
-if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
-    echo "⚠️  WARNING: Python version is $PYTHON_VERSION, not 3.11+"
-    echo "   The script may still work, but Python 3.11+ is recommended"
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]); then
+    echo "⚠️  WARNING: Python version is $PYTHON_VERSION, not 3.10+"
+    exit 1
 else
-    echo "✓ Python 3.11+ confirmed: $PYTHON_VERSION"
+    echo "✓ Python 3.10+ confirmed: $PYTHON_VERSION"
 fi
 
 # Create application directory
@@ -96,8 +55,10 @@ $APP_DIR/logs/*.log {
 }
 EOF
 
-# Make scripts executable
-chmod +x "$APP_DIR/run_daily_update_ec2.py"
+# Make scripts executable (if they exist)
+if [ -f "$APP_DIR/run_daily_update_ec2.py" ]; then
+    chmod +x "$APP_DIR/run_daily_update_ec2.py"
+fi
 
 echo ""
 echo "=========================================="
