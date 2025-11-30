@@ -8,6 +8,7 @@ It sets up the environment and calls the daily_update_stocks function.
 
 import os
 import sys
+import argparse
 from pathlib import Path
 from datetime import datetime
 
@@ -23,17 +24,25 @@ os.environ['PYTHONUNBUFFERED'] = '1'  # Disable buffering for real-time logs
 
 def main():
     """Main entry point for EC2 execution"""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Run daily stock update on EC2')
+    parser.add_argument('--limit', type=int, default=None,
+                        help='Limit number of tickers to process (for testing). Example: --limit 100')
+    args = parser.parse_args()
+    
     print(f"{'='*70}")
     print(f"EC2 Daily Stock Update - Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Working Directory: {SCRIPT_DIR}")
+    if args.limit:
+        print(f"TEST MODE: Limited to {args.limit} tickers")
     print(f"{'='*70}\n")
     
     try:
         # Import the daily_update_stocks module
         from daily_update_stocks import daily_update_stocks
         
-        # Call the main function
-        daily_update_stocks()
+        # Call the main function with limit if provided
+        daily_update_stocks(limit=args.limit)
         
         print(f"\n{'='*70}")
         print(f"EC2 Daily Stock Update - Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

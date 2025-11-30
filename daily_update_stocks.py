@@ -1432,12 +1432,17 @@ def upsert_ticker_data(conn, symbol, data, log):
         raise e
 
 if __name__ == "__main__":
+    import argparse
+    
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Daily stock update script')
+    parser.add_argument('--limit', type=int, default=None,
+                        help='Limit number of tickers to process (for testing). Example: --limit 100')
+    args = parser.parse_args()
+    
     try:
-        # For testing, uncomment and set limit:
-        # daily_update_stocks(limit=1000)  # Test with 10 tickers
-        
-        # For production (all tickers):
-        daily_update_stocks()
+        # Call with limit if provided, otherwise process all tickers
+        daily_update_stocks(limit=args.limit)
         
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user.")
