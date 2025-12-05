@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime
+from datetime import date
 from psycopg2.extras import execute_values
 from store_stock_data import get_db_connection
 from get_price import get_all_dates_with_prices
@@ -403,4 +404,4 @@ def calculate_and_store_relative_strength_for_all_dates(batch_size=500, start_da
 
 if __name__ == "__main__":
     # Can be called standalone or integrated into daily_update_stocks.py
-    calculate_and_store_relative_strength_for_all_dates()
+    calculate_and_store_relative_strength_for_all_dates(start_date=date(2005,12,30))
