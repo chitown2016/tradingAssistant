@@ -1,6 +1,8 @@
 import pandas as pd
 from datetime import datetime
 from datetime import date
+import argparse
+import sys
 from psycopg2.extras import execute_values
 from store_stock_data import get_db_connection
 from get_price import get_all_dates_with_prices
@@ -403,5 +405,80 @@ def calculate_and_store_relative_strength_for_all_dates(batch_size=500, start_da
 
 
 if __name__ == "__main__":
-    # Can be called standalone or integrated into daily_update_stocks.py
-    calculate_and_store_relative_strength_for_all_dates(start_date=date(2005,12,30))
+    parser = argparse.ArgumentParser(
+        description='Calculate and store relative strength ratings',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Process only today's date (default)
+  python relative_strength.py
+  
+  # Process all dates from a specific start date
+  python relative_strength.py --start-date 2005-12-30
+  
+  # Process dates within a range
+  python relative_strength.py --start-date 2020-01-01 --end-date 2024-12-31
+  
+  # Skip dates that already have calculations
+  python relative_strength.py --start-date 2005-12-30 --skip-existing
+
+Note: Date format must be YYYY-MM-DD (e.g., 2005-12-30)
+        """
+    )
+    parser.add_argument(
+        '--start-date',
+        type=str,
+        default=None,
+        metavar='YYYY-MM-DD',
+        help='Start date for batch processing. If provided, processes all dates from start_date onwards. If not provided, processes only today. Format: YYYY-MM-DD'
+    )
+    parser.add_argument(
+        '--end-date',
+        type=str,
+        default=None,
+        metavar='YYYY-MM-DD',
+        help='End date for batch processing. Only used with --start-date. Format: YYYY-MM-DD'
+    )
+    parser.add_argument(
+        '--skip-existing',
+        action='store_true',
+        help='Skip dates that already have calculations in the database'
+    )
+    
+    args = parser.parse_args()
+    
+    # If no start_date provided, process only today
+    if not args.start_date:
+        calculate_and_store_relative_strength()
+    else:
+        # Parse the start_date string into a date object
+        try:
+            start_date_obj = datetime.strptime(args.start_date, '%Y-%m-%d').date()
+            end_date_obj = None
+            
+            if args.end_date:
+                try:
+                    end_date_obj = datetime.strptime(args.end_date, '%Y-%m-%d').date()
+                except ValueError:
+                    print(f"Error: Invalid end-date format '{args.end_date}'. Please use YYYY-MM-DD format (e.g., 2024-12-31)")
+                    sys.exit(1)
+            
+            print("=" * 70)
+            print(f"Processing all dates from {start_date_obj}", end="")
+            if end_date_obj:
+                print(f" to {end_date_obj}", end="")
+            print("...")
+            print("=" * 70)
+            
+            calculate_and_store_relative_strength_for_all_dates(
+                start_date=start_date_obj,
+                end_date=end_date_obj,
+                skip_existing=args.skip_existing
+            )
+        except ValueError:
+            print("=" * 70)
+            print(f"ERROR: Invalid date format '{args.start_date}'")
+            print("=" * 70)
+            print("\nPlease use YYYY-MM-DD format (e.g., 2005-12-30)")
+            print("Run with --help to see usage examples\n")
+            sys.exit(1)
