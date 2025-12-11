@@ -282,44 +282,46 @@ def get_ticker_metadata(symbol):
     except:
         return 'EQUITY', 'USA'
 
-def detect_corporate_actions_and_get_data(existing_symbols, conn):
-    """Detect corporate actions by comparing prices AND cache the 5d data
+def detect_corporate_actions_and_get_data(existing_symbols, conn, lookback_days=5):
+    """Detect corporate actions by comparing prices AND cache the lookback data
     
-    Downloads 5-day data once, compares first day's price with database to detect
+    Downloads lookback-day data once, compares first day's price with database to detect
     corporate actions, and returns both the symbols needing full reload and the
-    5-day data (to reuse for symbols without corporate actions).
+    lookback-day data (to reuse for symbols without corporate actions).
     
     Args:
         existing_symbols: List of symbols already in database
         conn: Database connection
+        lookback_days: Number of days to look back (default: 5)
     
     Returns:
         symbols_with_changes: Set of symbols that need max reload (corporate actions detected)
-        data_5d: The 5-day data we downloaded (reuse for other symbols!)
+        data_lookback: The lookback-day data we downloaded (reuse for other symbols!)
     """
     # Handle empty database case
     if not existing_symbols:
         print("\n  No existing symbols to check for corporate actions")
         return set(), None
     
-    print(f"\n  Downloading 5-day data for {len(existing_symbols)} symbols...")
+    period_str = f"{lookback_days}d"
+    print(f"\n  Downloading {lookback_days}-day data for {len(existing_symbols)} symbols...")
     
-    # Download 5-day data in batches to avoid rate limiting
-    data_5d = download_data_in_batches(
+    # Download lookback-day data in batches to avoid rate limiting
+    data_lookback = download_data_in_batches(
         existing_symbols,
-        period='5d',
+        period=period_str,
         batch_size=500,
         delay=2
     )
     
-    if data_5d is None or data_5d.empty:
-        print("  ⚠ No 5-day data downloaded")
+    if data_lookback is None or data_lookback.empty:
+        print(f"  ⚠ No {lookback_days}-day data downloaded")
         return set(), None
     
     print(f"  ✓ Downloaded, now comparing with database prices...")
     
     # Determine the first date from Yahoo data
-    first_date = data_5d.index[0].to_pydatetime().date()
+    first_date = data_lookback.index[0].to_pydatetime().date()
     print(f"  Comparing prices for date: {first_date}")
     
     # OPTIMIZATION: Fetch all symbols' prices for that date in ONE query
@@ -355,11 +357,11 @@ def detect_corporate_actions_and_get_data(existing_symbols, conn):
             try:
                 # Get Yahoo data for this symbol
                 if len(existing_symbols) == 1:
-                    df = data_5d
+                    df = data_lookback
                 else:
-                    if symbol not in data_5d.columns.levels[0]:
+                    if symbol not in data_lookback.columns.levels[0]:
                         continue
-                    df = data_5d[symbol]
+                    df = data_lookback[symbol]
                 
                 if df.empty or df.dropna().empty:
                     continue
@@ -395,16 +397,21 @@ def detect_corporate_actions_and_get_data(existing_symbols, conn):
     
     print(f"\n  ✓ Found {len(symbols_with_changes)} symbols with price mismatches")
     print(f"  ✓ Corporate action log saved to '{log_file_path}'")
-    return symbols_with_changes, data_5d
+    return symbols_with_changes, data_lookback
 
-def categorize_tickers(all_symbols, conn):
-    """Categorize tickers into new_tickers, max_tickers, and tickers_5d
+def categorize_tickers(all_symbols, conn, lookback_days=5):
+    """Categorize tickers into new_tickers, max_tickers, and tickers_lookback
+    
+    Args:
+        all_symbols: List of all ticker symbols
+        conn: Database connection
+        lookback_days: Number of days to look back (default: 5)
     
     Returns:
         new_tickers: Symbols not in database (need full history)
         max_tickers: Symbols with corporate actions (need full history reload)
-        tickers_5d: Symbols without corporate actions (need 5-day update)
-        data_5d_cached: The 5-day data already downloaded (reuse it!)
+        tickers_lookback: Symbols without corporate actions (need lookback-day update)
+        data_lookback_cached: The lookback-day data already downloaded (reuse it!)
     """
     print("\nCategorizing tickers by update strategy...")
     
@@ -423,25 +430,27 @@ def categorize_tickers(all_symbols, conn):
     print(f"  New tickers: {len(new_tickers)}")
     print(f"  Existing tickers: {len(existing_tickers)}")
     
-    # Detect corporate actions by price comparison AND get the 5d data
-    symbols_with_changes, data_5d_cached = detect_corporate_actions_and_get_data(existing_tickers, conn)
+    # Detect corporate actions by price comparison AND get the lookback data
+    symbols_with_changes, data_lookback_cached = detect_corporate_actions_and_get_data(existing_tickers, conn, lookback_days=lookback_days)
     
     # Categorize
     max_tickers = list(symbols_with_changes)
-    tickers_5d = [s for s in existing_tickers if s not in symbols_with_changes]
+    tickers_lookback = [s for s in existing_tickers if s not in symbols_with_changes]
     
     print(f"\nCategorization complete:")
     print(f"  New tickers (INSERT only): {len(new_tickers)}")
     print(f"  Max tickers (DELETE + INSERT): {len(max_tickers)}")
-    print(f"  5-day tickers (UPSERT): {len(tickers_5d)}")
+    print(f"  {lookback_days}-day tickers (UPSERT): {len(tickers_lookback)}")
     
-    return new_tickers, max_tickers, tickers_5d, data_5d_cached
+    return new_tickers, max_tickers, tickers_lookback, data_lookback_cached
 
-def daily_update_stocks(limit=None):
+def daily_update_stocks(limit=None, lookback_days=5):
     """Main function to perform daily stock update
     
     Args:
         limit: Optional int to limit number of symbols (for testing). Example: limit=10
+        lookback_days: Number of days to look back for updates (default: 5). 
+                      Use a higher value if the script hasn't run for several days.
     """
     start_time = datetime.now()
     
@@ -452,6 +461,7 @@ def daily_update_stocks(limit=None):
     
     print(f"{'='*70}")
     print(f"DAILY STOCK UPDATE - Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Lookback days: {lookback_days}")
     print(f"{'='*70}")
     
     # Step 1: Generate fresh ticker list
@@ -463,7 +473,7 @@ def daily_update_stocks(limit=None):
     print("\n[2/4] Connecting to database and categorizing tickers...")
     conn = get_db_connection(statement_timeout_seconds=600)
     
-    new_tickers, max_tickers, tickers_5d, data_5d_cached = categorize_tickers(all_symbols, conn)
+    new_tickers, max_tickers, tickers_lookback, data_lookback_cached = categorize_tickers(all_symbols, conn, lookback_days=lookback_days)
     conn.close()  # Close connection before long download to prevent timeout
     print("  ✓ Connection closed after categorization")
     
@@ -484,10 +494,11 @@ def daily_update_stocks(limit=None):
             conn_inc = get_db_connection(statement_timeout_seconds=600)
             log_inc = open(log_file, 'w', encoding='utf-8')
             log_inc.write(f"Daily Update Started: {start_time}\n")
+            log_inc.write(f"Lookback days: {lookback_days}\n")
             log_inc.write(f"Total symbols: {len(all_symbols)}\n")
             log_inc.write(f"New tickers: {len(new_tickers)}\n")
             log_inc.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
-            log_inc.write(f"5-day tickers: {len(tickers_5d)}\n")
+            log_inc.write(f"{lookback_days}-day tickers: {len(tickers_lookback)}\n")
             if limit:
                 log_inc.write(f"TEST MODE: Limited to {limit} symbols\n")
             log_inc.write("\n")
@@ -521,7 +532,7 @@ def daily_update_stocks(limit=None):
                 print(f"  ✓ Downloaded and processed MAX data incrementally")
                 print(f"    New tickers: {incremental_stats['new_success']} processed, {incremental_stats['new_records']:,} records")
                 print(f"    Max tickers: {incremental_stats['max_success']} processed, {incremental_stats['max_records']:,} records")
-                # Keep connection and log open for 5d processing
+                # Keep connection and log open for lookback processing
                 conn = conn_inc
                 log_file_handle = log_inc
             else:
@@ -536,12 +547,12 @@ def daily_update_stocks(limit=None):
             if 'log_inc' in locals():
                 log_inc.close()
     
-    # Use cached 5-day data (already downloaded during categorization!)
-    if tickers_5d:
-        if data_5d_cached is not None:
-            print(f"\n  ✓ Using cached 5-day data for {len(tickers_5d)} tickers (already downloaded)")
+    # Use cached lookback-day data (already downloaded during categorization!)
+    if tickers_lookback:
+        if data_lookback_cached is not None:
+            print(f"\n  ✓ Using cached {lookback_days}-day data for {len(tickers_lookback)} tickers (already downloaded)")
         else:
-            print(f"\n  ⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None")
+            print(f"\n  ⚠ Warning: {len(tickers_lookback)} tickers need {lookback_days}-day update but data_lookback_cached is None")
             print(f"     This may indicate an issue during categorization step")
     
     # Step 4: Database updates
@@ -561,16 +572,17 @@ def daily_update_stocks(limit=None):
             log.write(f"  Max tickers: {incremental_stats['max_success']} processed, {incremental_stats['max_records']:,} records\n")
             log.write("\n")
             log.write(f"[4/4] Updating database...\n")  # Log this step
-            log.write(f"  Checking 5-day tickers: {len(tickers_5d) if tickers_5d else 0} tickers\n")
-            log.write(f"  data_5d_cached is {'None' if data_5d_cached is None else 'available'}\n")
+            log.write(f"  Checking {lookback_days}-day tickers: {len(tickers_lookback) if tickers_lookback else 0} tickers\n")
+            log.write(f"  data_lookback_cached is {'None' if data_lookback_cached is None else 'available'}\n")
             log.flush()  # Flush incremental stats
         else:
             log = open(log_file, 'w', encoding='utf-8')
             log.write(f"Daily Update Started: {start_time}\n")
+            log.write(f"Lookback days: {lookback_days}\n")
             log.write(f"Total symbols: {len(all_symbols)}\n")
             log.write(f"New tickers: {len(new_tickers)}\n")
             log.write(f"Max tickers (corporate actions): {len(max_tickers)}\n")
-            log.write(f"5-day tickers: {len(tickers_5d)}\n")
+            log.write(f"{lookback_days}-day tickers: {len(tickers_lookback)}\n")
             if limit:
                 log.write(f"TEST MODE: Limited to {limit} symbols\n")
             log.write("\n")
@@ -582,8 +594,8 @@ def daily_update_stocks(limit=None):
                 'new_failed': 0,
                 'max_success': incremental_stats['max_success'],
                 'max_failed': 0,
-                '5d_success': 0,
-                '5d_failed': 0,
+                'lookback_success': 0,
+                'lookback_failed': 0,
                 'total_records': incremental_stats['new_records'] + incremental_stats['max_records'],
                 'failed_tickers': []
             }
@@ -593,8 +605,8 @@ def daily_update_stocks(limit=None):
                 'new_failed': 0,
                 'max_success': 0,
                 'max_failed': 0,
-                '5d_success': 0,
-                '5d_failed': 0,
+                'lookback_success': 0,
+                'lookback_failed': 0,
                 'total_records': 0,
                 'failed_tickers': []
             }
@@ -655,56 +667,56 @@ def daily_update_stocks(limit=None):
                         stats['failed_tickers'].append((symbol, 'max', str(e2)))
                         log.write(f"  ✗ {symbol} (max): {e2}\n")
         
-        # Process 5-day tickers (BATCHED BULK UPSERT) - use cached data
-        log.write(f"\n--- Starting 5-day ticker processing ---\n")
-        log.write(f"  tickers_5d count: {len(tickers_5d) if tickers_5d else 0}\n")
-        log.write(f"  data_5d_cached is None: {data_5d_cached is None}\n")
+        # Process lookback-day tickers (BATCHED BULK UPSERT) - use cached data
+        log.write(f"\n--- Starting {lookback_days}-day ticker processing ---\n")
+        log.write(f"  tickers_lookback count: {len(tickers_lookback) if tickers_lookback else 0}\n")
+        log.write(f"  data_lookback_cached is None: {data_lookback_cached is None}\n")
         log.flush()
         
-        if tickers_5d:
-            if data_5d_cached is not None:
-                print(f"\n  Processing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...")
-                log.write(f"\nProcessing {len(tickers_5d)} tickers (5-day BATCHED BULK UPSERT)...\n")
+        if tickers_lookback:
+            if data_lookback_cached is not None:
+                print(f"\n  Processing {len(tickers_lookback)} tickers ({lookback_days}-day BATCHED BULK UPSERT)...")
+                log.write(f"\nProcessing {len(tickers_lookback)} tickers ({lookback_days}-day BATCHED BULK UPSERT)...\n")
                 log.flush()
                 try:
-                    success_count, total_records = batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch_size=500)
-                    stats['5d_success'] = success_count
+                    success_count, total_records = batched_bulk_upsert_ticker_data(conn, tickers_lookback, data_lookback_cached, log, batch_size=500)
+                    stats['lookback_success'] = success_count
                     stats['total_records'] += total_records
                     print(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records")
                     log.write(f"  ✓ Successfully processed {success_count} tickers with {total_records:,} records\n")
                     log.flush()
                 except Exception as e:
                     print(f"  ✗ Batched bulk upsert failed: {e}")
-                    log.write(f"  ✗ Batched bulk upsert (5d) failed: {e}\n")
+                    log.write(f"  ✗ Batched bulk upsert ({lookback_days}d) failed: {e}\n")
                     log.flush()
                     # Fallback to individual processing
                     print(f"  Falling back to individual processing...")
-                    for symbol in tickers_5d:
+                    for symbol in tickers_lookback:
                         try:
-                            success, records = upsert_ticker_data(conn, symbol, data_5d_cached, log)
+                            success, records = upsert_ticker_data(conn, symbol, data_lookback_cached, log)
                             if success:
-                                stats['5d_success'] += 1
+                                stats['lookback_success'] += 1
                                 stats['total_records'] += records
                             else:
-                                stats['5d_failed'] += 1
-                                stats['failed_tickers'].append((symbol, '5d', 'No data available'))
+                                stats['lookback_failed'] += 1
+                                stats['failed_tickers'].append((symbol, f'{lookback_days}d', 'No data available'))
                         except Exception as e2:
-                            stats['5d_failed'] += 1
-                            stats['failed_tickers'].append((symbol, '5d', str(e2)))
-                            log.write(f"  ✗ {symbol} (5d): {e2}\n")
+                            stats['lookback_failed'] += 1
+                            stats['failed_tickers'].append((symbol, f'{lookback_days}d', str(e2)))
+                            log.write(f"  ✗ {symbol} ({lookback_days}d): {e2}\n")
             else:
-                # data_5d_cached is None - log this issue
-                print(f"\n  ⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None")
-                print(f"     Skipping 5-day ticker processing")
-                log.write(f"\n⚠ Warning: {len(tickers_5d)} tickers need 5-day update but data_5d_cached is None\n")
-                log.write(f"  Skipping 5-day ticker processing\n")
-                log.write(f"  This means data_5d_cached was not set during categorization step\n")
+                # data_lookback_cached is None - log this issue
+                print(f"\n  ⚠ Warning: {len(tickers_lookback)} tickers need {lookback_days}-day update but data_lookback_cached is None")
+                print(f"     Skipping {lookback_days}-day ticker processing")
+                log.write(f"\n⚠ Warning: {len(tickers_lookback)} tickers need {lookback_days}-day update but data_lookback_cached is None\n")
+                log.write(f"  Skipping {lookback_days}-day ticker processing\n")
+                log.write(f"  This means data_lookback_cached was not set during categorization step\n")
                 log.flush()
-                stats['5d_failed'] = len(tickers_5d)
-                for symbol in tickers_5d:
-                    stats['failed_tickers'].append((symbol, '5d', 'data_5d_cached is None'))
+                stats['lookback_failed'] = len(tickers_lookback)
+                for symbol in tickers_lookback:
+                    stats['failed_tickers'].append((symbol, f'{lookback_days}d', 'data_lookback_cached is None'))
         else:
-            log.write(f"  No 5-day tickers to process (tickers_5d is empty or None)\n")
+            log.write(f"  No {lookback_days}-day tickers to process (tickers_lookback is empty or None)\n")
             log.flush()
         
         # Final summary - always write this even if there were errors
@@ -714,8 +726,8 @@ def daily_update_stocks(limit=None):
             end_time = datetime.now()
             elapsed = (end_time - start_time).total_seconds()
             
-            total_success = stats['new_success'] + stats['max_success'] + stats['5d_success']
-            total_failed = stats['new_failed'] + stats['max_failed'] + stats['5d_failed']
+            total_success = stats['new_success'] + stats['max_success'] + stats['lookback_success']
+            total_failed = stats['new_failed'] + stats['max_failed'] + stats['lookback_failed']
             total_processed = total_success + total_failed
             
             summary = f"""
@@ -725,6 +737,7 @@ DAILY UPDATE COMPLETE!
 Start time:  {start_time.strftime('%Y-%m-%d %H:%M:%S')}
 End time:    {end_time.strftime('%Y-%m-%d %H:%M:%S')}
 Duration:    {elapsed/60:.1f} minutes
+Lookback days: {lookback_days}
 
 New tickers:
   ✓ Success: {stats['new_success']}
@@ -734,9 +747,9 @@ Corporate action tickers (MAX reload):
   ✓ Success: {stats['max_success']}
   ✗ Failed: {stats['max_failed']}
 
-Regular update tickers (5-day):
-  ✓ Success: {stats['5d_success']}
-  ✗ Failed: {stats['5d_failed']}
+Regular update tickers ({lookback_days}-day):
+  ✓ Success: {stats['lookback_success']}
+  ✗ Failed: {stats['lookback_failed']}
 
 Total:
   Processed: {total_processed}
@@ -1098,18 +1111,18 @@ def batched_bulk_delete_and_insert_max_tickers(conn, max_tickers, max_data, log,
     print(f"  ✓ Completed: {total_success} tickers, {total_records:,} total records")
     return total_success, total_records
 
-def batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch_size=500):
-    """Batched bulk upsert for 5-day tickers"""
-    print(f"\n  Processing {len(tickers_5d)} 5-day tickers in batches of {batch_size}...")
+def batched_bulk_upsert_ticker_data(conn, tickers_lookback, data_lookback_cached, log, batch_size=500):
+    """Batched bulk upsert for lookback-day tickers"""
+    print(f"\n  Processing {len(tickers_lookback)} lookback-day tickers in batches of {batch_size}...")
     
     total_success = 0
     total_records = 0
     
     # Process in batches
-    for i in range(0, len(tickers_5d), batch_size):
-        batch = tickers_5d[i:i + batch_size]
+    for i in range(0, len(tickers_lookback), batch_size):
+        batch = tickers_lookback[i:i + batch_size]
         batch_num = (i // batch_size) + 1
-        total_batches = (len(tickers_5d) + batch_size - 1) // batch_size
+        total_batches = (len(tickers_lookback) + batch_size - 1) // batch_size
         
         print(f"  Batch {batch_num}/{total_batches}: Processing {len(batch)} tickers...")
         
@@ -1119,12 +1132,12 @@ def batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch
         # Collect data for this batch
         for symbol in batch:
             try:
-                if len(data_5d_cached.columns.levels[0]) > 1 if hasattr(data_5d_cached.columns, 'levels') else False:
-                    if symbol not in data_5d_cached.columns.levels[0]:
+                if len(data_lookback_cached.columns.levels[0]) > 1 if hasattr(data_lookback_cached.columns, 'levels') else False:
+                    if symbol not in data_lookback_cached.columns.levels[0]:
                         continue
-                    df = data_5d_cached[symbol]
+                    df = data_lookback_cached[symbol]
                 else:
-                    df = data_5d_cached
+                    df = data_lookback_cached
                 
                 if df.empty or df.dropna().empty:
                     continue
@@ -1145,7 +1158,7 @@ def batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch
                     ticker_metadata[symbol] = last_date
             
             except Exception as e:
-                log.write(f"  ✗ {symbol} (5d): Error collecting data: {e}\n")
+                log.write(f"  ✗ {symbol} (lookback): Error collecting data: {e}\n")
         
         if not all_values:
             print(f"    ⚠ Batch {batch_num}: No data to insert")
@@ -1198,7 +1211,7 @@ def batched_bulk_upsert_ticker_data(conn, tickers_5d, data_5d_cached, log, batch
             conn.rollback()
             cursor.close()
             print(f"    ✗ Batch {batch_num} failed: {e}")
-            log.write(f"  ✗ Batch {batch_num} (5d) failed: {e}\n")
+            log.write(f"  ✗ Batch {batch_num} (lookback) failed: {e}\n")
             # Continue with next batch
     
     print(f"  ✓ Completed: {total_success} tickers, {total_records:,} total records")
@@ -1352,7 +1365,7 @@ def delete_and_insert_ticker_data(conn, symbol, data, log):
         raise e
 
 def upsert_ticker_data(conn, symbol, data, log):
-    """Upsert 5-day data for ticker without corporate actions"""
+    """Upsert lookback-day data for ticker without corporate actions"""
     try:
         # Handle both single ticker and multi-ticker downloads
         if len(data.columns.levels[0]) > 1 if hasattr(data.columns, 'levels') else False:
@@ -1423,8 +1436,8 @@ def upsert_ticker_data(conn, symbol, data, log):
         conn.commit()
         cursor.close()
         
-        log.write(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: ✓ {symbol} (5d): {len(values)} records\n")
-        print(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: ✓ {symbol} (5d): {len(values)} records")
+        log.write(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: ✓ {symbol} (lookback): {len(values)} records\n")
+        print(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: ✓ {symbol} (lookback): {len(values)} records")
         return (True, len(values))
         
     except Exception as e:
@@ -1438,11 +1451,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Daily stock update script')
     parser.add_argument('--limit', type=int, default=None,
                         help='Limit number of tickers to process (for testing). Example: --limit 100')
+    parser.add_argument('--lookback-days', type=int, default=5, dest='lookback_days',
+                        help='Number of days to look back for updates (default: 5). Use a higher value if the script hasn\'t run for several days.')
     args = parser.parse_args()
     
     try:
-        # Call with limit if provided, otherwise process all tickers
-        daily_update_stocks(limit=args.limit)
+        # Call with limit and lookback_days if provided
+        daily_update_stocks(limit=args.limit, lookback_days=args.lookback_days)
         
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user.")

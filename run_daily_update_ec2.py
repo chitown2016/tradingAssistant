@@ -28,11 +28,14 @@ def main():
     parser = argparse.ArgumentParser(description='Run daily stock update on EC2')
     parser.add_argument('--limit', type=int, default=None,
                         help='Limit number of tickers to process (for testing). Example: --limit 100')
+    parser.add_argument('--lookback-days', type=int, default=5, dest='lookback_days',
+                        help='Number of days to look back for updates (default: 5). Use a higher value if the script hasn\'t run for several days.')
     args = parser.parse_args()
     
     print(f"{'='*70}")
     print(f"EC2 Daily Stock Update - Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Working Directory: {SCRIPT_DIR}")
+    print(f"Lookback days: {args.lookback_days}")
     if args.limit:
         print(f"TEST MODE: Limited to {args.limit} tickers")
     print(f"{'='*70}\n")
@@ -41,8 +44,8 @@ def main():
         # Import the daily_update_stocks module
         from daily_update_stocks import daily_update_stocks
         
-        # Call the main function with limit if provided
-        daily_update_stocks(limit=args.limit)
+        # Call the main function with limit and lookback_days if provided
+        daily_update_stocks(limit=args.limit, lookback_days=args.lookback_days)
         
         print(f"\n{'='*70}")
         print(f"EC2 Daily Stock Update - Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
