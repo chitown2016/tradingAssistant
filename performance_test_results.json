@@ -1,0 +1,238 @@
+[
+  {
+    "name": "Prices (AAPL, 1d, 30d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.21866941452026367,
+    "success": true,
+    "response_size": 2088,
+    "error": null,
+    "data_points": 18
+  },
+  {
+    "name": "Latest Price (AAPL)",
+    "endpoint": "/symbols/AAPL/latest",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 6.322521924972534,
+    "success": true,
+    "response_size": 136,
+    "error": null
+  },
+  {
+    "name": "List Symbols",
+    "endpoint": "/symbols",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.13547825813293457,
+    "success": true,
+    "response_size": 1869,
+    "error": null
+  },
+  {
+    "name": "Symbol Metadata (AAPL)",
+    "endpoint": "/symbols/AAPL/metadata",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.13054656982421875,
+    "success": true,
+    "response_size": 189,
+    "error": null
+  },
+  {
+    "name": "Health Check",
+    "endpoint": "/health",
+    "method": "GET",
+    "status_code": 404,
+    "response_time": 0.02289104461669922,
+    "success": false,
+    "response_size": 22,
+    "error": "Expected 200, got 404",
+    "error_detail": {
+      "detail": "Not Found"
+    }
+  },
+  {
+    "name": "List Symbols",
+    "endpoint": "/symbols",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.11571455001831055,
+    "success": true,
+    "response_size": 1869,
+    "error": null
+  },
+  {
+    "name": "List Symbols",
+    "endpoint": "/symbols",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.1406259536743164,
+    "success": true,
+    "response_size": 18742,
+    "error": null
+  },
+  {
+    "name": "Symbol Metadata (AAPL)",
+    "endpoint": "/symbols/AAPL/metadata",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.130540132522583,
+    "success": true,
+    "response_size": 189,
+    "error": null
+  },
+  {
+    "name": "Symbol Metadata (MSFT)",
+    "endpoint": "/symbols/MSFT/metadata",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.1253519058227539,
+    "success": true,
+    "response_size": 189,
+    "error": null
+  },
+  {
+    "name": "Latest Price (AAPL)",
+    "endpoint": "/symbols/AAPL/latest",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 24.96774387359619,
+    "success": true,
+    "response_size": 136,
+    "error": null
+  },
+  {
+    "name": "Prices (AAPL, 1d, 7d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.18961715698242188,
+    "success": true,
+    "response_size": 559,
+    "error": null,
+    "data_points": 4
+  },
+  {
+    "name": "Prices (AAPL, 1d, 30d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.17798852920532227,
+    "success": true,
+    "response_size": 2088,
+    "error": null,
+    "data_points": 18
+  },
+  {
+    "name": "Prices (AAPL, 1d, 90d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.19237112998962402,
+    "success": true,
+    "response_size": 7216,
+    "error": null,
+    "data_points": 62
+  },
+  {
+    "name": "Prices (AAPL, 1d, 365d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.26937150955200195,
+    "success": true,
+    "response_size": 29076,
+    "error": null,
+    "data_points": 248
+  },
+  {
+    "name": "Prices (AAPL, 1d, 365d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.1811659336090088,
+    "success": true,
+    "response_size": 29076,
+    "error": null,
+    "data_points": 248
+  },
+  {
+    "name": "Prices (AAPL, 1w, 365d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.2233262062072754,
+    "success": true,
+    "response_size": 6247,
+    "error": null,
+    "data_points": 52
+  },
+  {
+    "name": "Prices (AAPL, 1m, 365d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.16211652755737305,
+    "success": true,
+    "response_size": 1654,
+    "error": null,
+    "data_points": 13
+  },
+  {
+    "name": "Prices (AAPL, 1d, 30d)",
+    "endpoint": "/symbols/AAPL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.16383886337280273,
+    "success": true,
+    "response_size": 2088,
+    "error": null,
+    "data_points": 18
+  },
+  {
+    "name": "Prices (MSFT, 1d, 30d)",
+    "endpoint": "/symbols/MSFT/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.1826488971710205,
+    "success": true,
+    "response_size": 2105,
+    "error": null,
+    "data_points": 18
+  },
+  {
+    "name": "Prices (GOOGL, 1d, 30d)",
+    "endpoint": "/symbols/GOOGL/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.1921372413635254,
+    "success": true,
+    "response_size": 2208,
+    "error": null,
+    "data_points": 18
+  },
+  {
+    "name": "Prices (TSLA, 1d, 30d)",
+    "endpoint": "/symbols/TSLA/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.17728900909423828,
+    "success": true,
+    "response_size": 2096,
+    "error": null,
+    "data_points": 18
+  },
+  {
+    "name": "Prices (AMZN, 1d, 30d)",
+    "endpoint": "/symbols/AMZN/prices",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.18399357795715332,
+    "success": true,
+    "response_size": 2094,
+    "error": null,
+    "data_points": 18
+  }
+]
