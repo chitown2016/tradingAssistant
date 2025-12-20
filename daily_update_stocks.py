@@ -93,6 +93,7 @@ def process_incremental_batch(batch_data, batch_tickers, new_tickers, max_ticker
     Returns:
         Dictionary with stats: {'new_success': int, 'new_records': int, 'max_success': int, 'max_records': int}
     """
+    print(f"      [DEBUG] process_incremental_batch called with {len(batch_tickers)} tickers")
     stats = {'new_success': 0, 'new_records': 0, 'max_success': 0, 'max_records': 0}
     
     # Separate batch tickers into new and max
@@ -189,7 +190,17 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
                     auto_adjust=True,
                     threads=True
                 )
+                # ADD DEBUG OUTPUT HERE
+                print(f"    Batch {batch_num} download completed. Checking data...")
+                print(f"      batch_data is None: {batch_data is None}")
                 
+                if batch_data is not None:
+                    print(f"      batch_data.empty: {batch_data.empty}")
+                    print(f"      batch_data.shape: {batch_data.shape}")
+
+                    if hasattr(batch_data.columns, 'levels'):
+                        print(f"      Multi-level columns: {len(batch_data.columns.levels[0]) if len(batch_data.columns.levels) > 0 else 0}")
+
                 if batch_data is not None and not batch_data.empty:
                     # Process immediately via callback
                     print(f"    Processing batch {batch_num}...")  # ADD THIS LINE
