@@ -559,8 +559,16 @@ def daily_update_stocks(limit=None, lookback_days=5):
     print("\n[4/4] Updating database...")
     
     # If incremental processing was used, connection and log are already open
+    # If incremental processing was used, connection and log are already open
     if not incremental_processing_used:
         conn = get_db_connection(statement_timeout_seconds=600)  # Fresh connection!
+    else:
+        # Close and reopen connection after heavy incremental processing
+        # This prevents connection timeouts and lock accumulation
+        print("  Closing connection after incremental processing, reopening for bulk operations...")
+        conn_inc.close()
+        conn = get_db_connection(statement_timeout_seconds=600)  # Fresh connection!
+        print("  ✓ Connection reopened")
     
     try:
         # Open log file for writing (if not already open from incremental processing)
