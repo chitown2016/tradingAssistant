@@ -1,3 +1,6 @@
+from typing import Any
+
+
 from dotenv import load_dotenv
 import time
 import pandas as pd
@@ -98,7 +101,10 @@ def process_incremental_batch(batch_data, batch_tickers, new_tickers, max_ticker
     
     # Process new tickers from this batch
     if batch_new:
-        for symbol in batch_new:
+        print(f"      Processing {len(batch_new)} new tickers...")  # ADD THIS
+        for idx, symbol in enumerate(batch_new,1):
+            if idx % 50 == 0:  # Print every 50 symbols
+                print(f"        Progress: {idx}/{len(batch_new)} new tickers...")
             try:
                 # Extract data for this symbol
                 if len(batch_data.columns.levels[0]) > 1 if hasattr(batch_data.columns, 'levels') else False:
@@ -121,7 +127,10 @@ def process_incremental_batch(batch_data, batch_tickers, new_tickers, max_ticker
     
     # Process max tickers from this batch
     if batch_max:
-        for symbol in batch_max:
+        print(f"      Processing {len(batch_max)} max tickers...")  # ADD THIS
+        for idx, symbol in enumerate(batch_max,1):
+            if idx % 50 == 0:  # Print every 50 symbols
+                print(f"        Progress: {idx}/{len(batch_max)} max tickers...")
             try:
                 # Extract data for this symbol
                 if len(batch_data.columns.levels[0]) > 1 if hasattr(batch_data.columns, 'levels') else False:
@@ -183,6 +192,7 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
                 
                 if batch_data is not None and not batch_data.empty:
                     # Process immediately via callback
+                    print(f"    Processing batch {batch_num}...")  # ADD THIS LINE
                     process_callback(batch_data, batch)
                     print(f"    ✓ Batch {batch_num} downloaded and processed")
                 else:
