@@ -6,3 +6,5 @@ fastapi
 uvicorn[standard]
 pydantic
 requests
+pandas_market_calendars
+pytz

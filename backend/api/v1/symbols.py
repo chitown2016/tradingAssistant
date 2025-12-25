@@ -1,6 +1,8 @@
 """
 Symbol endpoints - list symbols, metadata, and price data
 """
+import logging
+import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,6 +11,27 @@ from backend.db import get_db
 from backend.models.price import SymbolMetadata, PriceData, TimeSeriesResponse, LatestPriceResponse
 
 router = APIRouter()
+
+# Set up file logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create file handler if not already exists
+if not logger.handlers:
+    # Create logs directory if it doesn't exist
+    log_dir = 'logs'
+    os.makedirs(log_dir, exist_ok=True)
+    
+    file_handler = logging.FileHandler(os.path.join(log_dir, 'api_performance.log'), mode='a')
+    file_handler.setLevel(logging.DEBUG)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
 
 @router.get("", response_model=List[SymbolMetadata])
@@ -48,6 +71,65 @@ async def list_symbols(
             params.append(limit)
         
         cursor.execute(query, params)
+        rows = cursor.fetchall()
+        
+        symbols = []
+        for row in rows:
+            symbols.append(SymbolMetadata(
+                symbol=row[0],
+                asset_type=row[1],
+                country=row[2],
+                first_date=row[3],
+                last_date=row[4],
+                record_count=row[5],
+                last_updated=row[6]
+            ))
+        
+        return symbols
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cursor.close()
+
+# Add after the list_symbols function, around line 71
+
+@router.get("/search", response_model=List[SymbolMetadata])
+async def search_symbols(
+    q: str = Query(..., description="Search query (symbol name or ticker)"),
+    limit: Optional[int] = Query(50, ge=1, le=1000, description="Limit number of results"),
+    db: psycopg2.extensions.connection = Depends(get_db)
+):
+    """
+    Search symbols by name or ticker (case-insensitive partial match)
+    
+    Query parameters:
+    - q: Search query string
+    - limit: Maximum number of results to return (default: 50, max: 1000)
+    """
+    cursor = db.cursor()
+    
+    try:
+        search_term = f"%{q.upper()}%"
+        
+        query = """
+            SELECT symbol, asset_type, country, first_date, last_date, record_count, last_updated 
+            FROM tickers 
+            WHERE UPPER(symbol) LIKE %s
+            ORDER BY 
+                CASE 
+                    WHEN UPPER(symbol) LIKE %s THEN 1  -- Exact match first
+                    WHEN UPPER(symbol) LIKE %s THEN 2  -- Starts with query
+                    ELSE 3  -- Contains query
+                END,
+                symbol
+            LIMIT %s
+        """
+        
+        exact_match = q.upper()
+        starts_with = f"{q.upper()}%"
+        
+        cursor.execute(query, (search_term, exact_match, starts_with, limit))
         rows = cursor.fetchall()
         
         symbols = []
@@ -148,6 +230,13 @@ async def get_prices(
         if not start_date:
             start_date = end_date - timedelta(days=365)
         
+        # Convert timezone-aware datetimes to naive (database uses TIMESTAMP without timezone)
+        # This ensures the composite index can be used efficiently
+        if start_date.tzinfo is not None:
+            start_date = start_date.replace(tzinfo=None)
+        if end_date.tzinfo is not None:
+            end_date = end_date.replace(tzinfo=None)
+        
         # Validate interval
         if interval.lower() not in ["1d", "1w", "1m"]:
             raise HTTPException(
@@ -203,6 +292,7 @@ async def get_prices(
             """
             params = (symbol_upper, start_date, end_date)
         
+        # Execute query
         cursor.execute(query, params)
         rows = cursor.fetchall()
         
@@ -235,6 +325,7 @@ async def get_prices(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"get_prices ERROR: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         cursor.close()
@@ -254,33 +345,51 @@ async def get_latest_price(
     try:
         symbol_upper = symbol.upper()
         
-        # Check if symbol exists
-        cursor.execute("SELECT COUNT(*) FROM tickers WHERE symbol = %s", (symbol_upper,))
-        if cursor.fetchone()[0] == 0:
-            raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
-
-        # Add this before the query to see the execution plan
-        cursor.execute("EXPLAIN ANALYZE " + """
-            SELECT timestamp, open, high, low, close, volume
-            FROM yahoo_adjusted_stock_prices
+        # Get the last_date from tickers table to limit chunk scanning
+        cursor.execute("""
+            SELECT last_date 
+            FROM tickers 
             WHERE symbol = %s
-            ORDER BY timestamp DESC
-            LIMIT 1
         """, (symbol_upper,))
-        plan = cursor.fetchall()
-        print("\n".join([row[0] for row in plan]))
-
         
-        # Get latest price using direct index scan
+        ticker_row = cursor.fetchone()
+        if not ticker_row:
+            raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
+        
+        last_date = ticker_row[0]
+        if not last_date:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No price data found for symbol '{symbol}'"
+            )
+        
+        # Use last_date to constrain the query to recent chunks only
+        # This allows TimescaleDB to use chunk exclusion effectively
+        # Query the last 30 days to ensure we get the latest, even if last_date is slightly stale
+        query_start_date = last_date - timedelta(days=30)
+        
+        # Execute query for latest price
         cursor.execute("""
             SELECT timestamp, open, high, low, close, volume
             FROM yahoo_adjusted_stock_prices
             WHERE symbol = %s
+              AND timestamp >= %s
             ORDER BY timestamp DESC
             LIMIT 1
-        """, (symbol_upper,))
+        """, (symbol_upper, query_start_date))
         
         row = cursor.fetchone()
+        
+        # Fallback if constrained query fails
+        if not row:
+            cursor.execute("""
+                SELECT timestamp, open, high, low, close, volume
+                FROM yahoo_adjusted_stock_prices
+                WHERE symbol = %s
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """, (symbol_upper,))
+            row = cursor.fetchone()
         
         if not row:
             raise HTTPException(
@@ -305,6 +414,7 @@ async def get_latest_price(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"get_latest_price ERROR: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         cursor.close()

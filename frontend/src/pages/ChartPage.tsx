@@ -35,18 +35,49 @@ export default function ChartPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load symbols list on mount
+  // Load default symbols on mount (for when search is empty)
   useEffect(() => {
-    async function loadSymbols() {
+    async function loadDefaultSymbols() {
       try {
-        const data = await apiService.getSymbols({ limit: 1000 });
+        const data = await apiService.getSymbols({ limit: 100 });
         setSymbols(data);
       } catch (err) {
         console.error('Failed to load symbols:', err);
       }
     }
-    loadSymbols();
+    loadDefaultSymbols();
   }, []);
+
+  // Search symbols when user types (debounced)
+  useEffect(() => {
+    if (!symbolSearch || symbolSearch.length < 2) {
+      // If search is too short, load default symbols
+      async function loadDefaultSymbols() {
+        try {
+          const data = await apiService.getSymbols({ limit: 100 });
+          setSymbols(data);
+        } catch (err) {
+          console.error('Failed to load symbols:', err);
+        }
+      }
+      loadDefaultSymbols();
+      return;
+    }
+
+    // Debounce search API call
+    const timeoutId = setTimeout(async () => {
+      try {
+        const data = await apiService.searchSymbols(symbolSearch, 50);
+        setSymbols(data);
+      } catch (err) {
+        console.error('Failed to search symbols:', err);
+      }
+    }, 300); // 300ms debounce
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [symbolSearch]);
 
   // Load price data when symbol or time range changes
   useEffect(() => {
@@ -87,7 +118,7 @@ export default function ChartPage() {
     loadPriceData();
   }, [selectedSymbol, timeRange]);
 
-  // Filter symbols based on search
+  // Filter symbols based on search (client-side fallback)
   const filteredSymbols = symbols.filter((symbol) =>
     symbol.symbol.toUpperCase().includes(symbolSearch.toUpperCase())
   );

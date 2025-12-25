@@ -46,16 +46,10 @@ api.interceptors.request.use(
     //   config.headers.Authorization = `Bearer ${token}`;
     // }
     
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
-    }
-    
     return config;
   },
   (error) => {
     // Handle request error
-    console.error('[API Request Error]', error);
     return Promise.reject(error);
   }
 );
@@ -66,10 +60,6 @@ api.interceptors.request.use(
  */
 api.interceptors.response.use(
   (response: AxiosResponse) => {
-    // Log response in development
-    if (import.meta.env.DEV) {
-      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, response.status);
-    }
     return response;
   },
   (error: AxiosError<ApiError>) => {
@@ -147,6 +137,16 @@ export const apiService = {
    */
   async getLatestPrice(symbol: string): Promise<LatestPriceResponse> {
     const response = await api.get<LatestPriceResponse>(`/symbols/${symbol}/latest`);
+    return response.data;
+  },
+
+  /**
+   * Search symbols by name or ticker
+   */
+  async searchSymbols(query: string, limit: number = 50): Promise<SymbolMetadata[]> {
+    const response = await api.get<SymbolMetadata[]>('/symbols/search', {
+      params: { q: query, limit },
+    });
     return response.data;
   },
 };

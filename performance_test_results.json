@@ -4,20 +4,20 @@
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.21866941452026367,
+    "response_time": 0.27508544921875,
     "success": true,
-    "response_size": 2088,
+    "response_size": 2194,
     "error": null,
-    "data_points": 18
+    "data_points": 19
   },
   {
     "name": "Latest Price (AAPL)",
     "endpoint": "/symbols/AAPL/latest",
     "method": "GET",
     "status_code": 200,
-    "response_time": 6.322521924972534,
+    "response_time": 0.1964099407196045,
     "success": true,
-    "response_size": 136,
+    "response_size": 134,
     "error": null
   },
   {
@@ -25,7 +25,7 @@
     "endpoint": "/symbols",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.13547825813293457,
+    "response_time": 0.13811898231506348,
     "success": true,
     "response_size": 1869,
     "error": null
@@ -35,7 +35,7 @@
     "endpoint": "/symbols/AAPL/metadata",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.13054656982421875,
+    "response_time": 0.13572144508361816,
     "success": true,
     "response_size": 189,
     "error": null
@@ -45,7 +45,7 @@
     "endpoint": "/health",
     "method": "GET",
     "status_code": 404,
-    "response_time": 0.02289104461669922,
+    "response_time": 0.01592230796813965,
     "success": false,
     "response_size": 22,
     "error": "Expected 200, got 404",
@@ -54,11 +54,21 @@
     }
   },
   {
+    "name": "Health Check",
+    "endpoint": "/health",
+    "method": "GET",
+    "status_code": 200,
+    "response_time": 0.014180421829223633,
+    "success": true,
+    "response_size": 20,
+    "error": null
+  },
+  {
     "name": "List Symbols",
     "endpoint": "/symbols",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.11571455001831055,
+    "response_time": 0.12390518188476562,
     "success": true,
     "response_size": 1869,
     "error": null
@@ -68,9 +78,9 @@
     "endpoint": "/symbols",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.1406259536743164,
+    "response_time": 0.49678659439086914,
     "success": true,
-    "response_size": 18742,
+    "response_size": 18739,
     "error": null
   },
   {
@@ -78,7 +88,7 @@
     "endpoint": "/symbols/AAPL/metadata",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.130540132522583,
+    "response_time": 0.14062952995300293,
     "success": true,
     "response_size": 189,
     "error": null
@@ -88,7 +98,7 @@
     "endpoint": "/symbols/MSFT/metadata",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.1253519058227539,
+    "response_time": 0.13429641723632812,
     "success": true,
     "response_size": 189,
     "error": null
@@ -98,9 +108,9 @@
     "endpoint": "/symbols/AAPL/latest",
     "method": "GET",
     "status_code": 200,
-    "response_time": 24.96774387359619,
+    "response_time": 0.2037672996520996,
     "success": true,
-    "response_size": 136,
+    "response_size": 134,
     "error": null
   },
   {
@@ -108,64 +118,64 @@
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.18961715698242188,
+    "response_time": 0.21772432327270508,
     "success": true,
-    "response_size": 559,
+    "response_size": 666,
     "error": null,
-    "data_points": 4
+    "data_points": 5
   },
   {
     "name": "Prices (AAPL, 1d, 30d)",
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.17798852920532227,
+    "response_time": 0.23260140419006348,
     "success": true,
-    "response_size": 2088,
+    "response_size": 2194,
     "error": null,
-    "data_points": 18
+    "data_points": 19
   },
   {
     "name": "Prices (AAPL, 1d, 90d)",
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.19237112998962402,
+    "response_time": 0.2799875736236572,
     "success": true,
-    "response_size": 7216,
+    "response_size": 7280,
     "error": null,
-    "data_points": 62
+    "data_points": 63
   },
   {
     "name": "Prices (AAPL, 1d, 365d)",
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.26937150955200195,
+    "response_time": 0.35986757278442383,
     "success": true,
-    "response_size": 29076,
+    "response_size": 29142,
     "error": null,
-    "data_points": 248
+    "data_points": 249
   },
   {
     "name": "Prices (AAPL, 1d, 365d)",
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.1811659336090088,
+    "response_time": 0.31992554664611816,
     "success": true,
-    "response_size": 29076,
+    "response_size": 29142,
     "error": null,
-    "data_points": 248
+    "data_points": 249
   },
   {
     "name": "Prices (AAPL, 1w, 365d)",
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.2233262062072754,
+    "response_time": 0.33000683784484863,
     "success": true,
-    "response_size": 6247,
+    "response_size": 6239,
     "error": null,
     "data_points": 52
   },
@@ -174,9 +184,9 @@
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.16211652755737305,
+    "response_time": 0.2950427532196045,
     "success": true,
-    "response_size": 1654,
+    "response_size": 1653,
     "error": null,
     "data_points": 13
   },
@@ -185,54 +195,76 @@
     "endpoint": "/symbols/AAPL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.16383886337280273,
+    "response_time": 0.23686623573303223,
     "success": true,
-    "response_size": 2088,
+    "response_size": 2194,
     "error": null,
-    "data_points": 18
+    "data_points": 19
   },
   {
     "name": "Prices (MSFT, 1d, 30d)",
     "endpoint": "/symbols/MSFT/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.1826488971710205,
+    "response_time": 0.21297597885131836,
     "success": true,
-    "response_size": 2105,
+    "response_size": 2192,
     "error": null,
-    "data_points": 18
+    "data_points": 19
   },
   {
     "name": "Prices (GOOGL, 1d, 30d)",
     "endpoint": "/symbols/GOOGL/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.1921372413635254,
+    "response_time": 0.21282291412353516,
     "success": true,
-    "response_size": 2208,
+    "response_size": 2276,
     "error": null,
-    "data_points": 18
+    "data_points": 19
   },
   {
     "name": "Prices (TSLA, 1d, 30d)",
     "endpoint": "/symbols/TSLA/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.17728900909423828,
+    "response_time": 0.22829484939575195,
     "success": true,
-    "response_size": 2096,
+    "response_size": 2204,
     "error": null,
-    "data_points": 18
+    "data_points": 19
   },
   {
     "name": "Prices (AMZN, 1d, 30d)",
     "endpoint": "/symbols/AMZN/prices",
     "method": "GET",
     "status_code": 200,
-    "response_time": 0.18399357795715332,
+    "response_time": 0.22582149505615234,
     "success": true,
-    "response_size": 2094,
+    "response_size": 2204,
     "error": null,
-    "data_points": 18
+    "data_points": 19
+  },
+  {
+    "name": "Concurrent Requests (10)",
+    "endpoint": "/symbols/AAPL/latest",
+    "total_time": 3.3892886638641357,
+    "success_count": 10,
+    "failure_count": 0,
+    "avg_response_time": 1.7286137819290162,
+    "min_response_time": 0.15789532661437988,
+    "max_response_time": 3.377030849456787,
+    "median_response_time": 1.680344581604004
+  },
+  {
+    "name": "Concurrent Requests (5)",
+    "endpoint": "/symbols/AAPL/prices",
+    "total_time": 1.665661334991455,
+    "success_count": 5,
+    "failure_count": 0,
+    "avg_response_time": 0.985966968536377,
+    "min_response_time": 0.27161145210266113,
+    "max_response_time": 1.665661334991455,
+    "median_response_time": 1.0660710334777832
   }
 ]

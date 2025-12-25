@@ -83,10 +83,18 @@ class PerformanceTest:
         self.results.append(result)
         return result
     
+    # Around line 86-91, change test_health_check:
     def test_health_check(self):
         """Test health check endpoint"""
         print("Testing health check...")
+        # Health endpoint is at root, not under /api/v1
+        result = self.test_endpoint("Health Check", "GET", "/health", expected_status=200)
+        # But we need to use the root URL, not /api/v1
+        # So temporarily override base_url or use full URL
+        original_base = self.base_url
+        self.base_url = "http://localhost:8000"  # Root level
         result = self.test_endpoint("Health Check", "GET", "/health")
+        self.base_url = original_base  # Restore
         print(f"  ✓ {result['response_time']:.3f}s - Status: {result['status_code']}")
         return result
     
@@ -200,7 +208,7 @@ class PerformanceTest:
         start_time = time.time()
         with ThreadPoolExecutor(max_workers=num_requests) as executor:
             futures = [executor.submit(make_request) for _ in range(num_requests)]
-            results = [f.get() for f in as_completed(futures)]
+            results = [f.result() for f in as_completed(futures)]
         
         total_time = time.time() - start_time
         success_count = sum(1 for r in results if r.get('success', False))

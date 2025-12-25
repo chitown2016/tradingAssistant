@@ -6,6 +6,7 @@ import sys
 from psycopg2.extras import execute_values
 from store_stock_data import get_db_connection
 from get_price import get_all_dates_with_prices
+from backend.utils.date_utils import get_calc_date
 
 def calculate_relative_strength_batch(conn, symbols_batch, calc_date):
     """
@@ -158,13 +159,13 @@ def calculate_and_store_relative_strength(calc_date=None, batch_size=500):
     3. After all batches, calculate percentile ranks and update rs_rating
     
     Args:
-        calc_date: Date to calculate for (default: today)
+        calc_date: Date to calculate for (default: determined by get_calc_date())
         batch_size: Number of symbols to process per batch
     """
 
     
     if calc_date is None:
-        calc_date = datetime.now().date()
+        calc_date = get_calc_date()
     
     print(f"\n{'='*70}")
     print(f"RELATIVE STRENGTH CALCULATION - {calc_date}")
