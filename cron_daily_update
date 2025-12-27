@@ -2,22 +2,26 @@
 # 
 # To install this cron job:
 # 1. Copy this file to your EC2 instance
-# 2. Run: crontab -e
-# 3. Add the line below (adjust path and time as needed)
+# 2. Set timezone (if needed): sudo timedatectl set-timezone America/New_York
+# 3. Run: crontab -e
+# 4. Add the line below (adjust path and time as needed)
 #
-# Schedule: Daily at 2:00 AM UTC (adjust timezone as needed)
+# Schedule: Weekdays at 4:30 PM (16:30) - adjust timezone as needed
 # 
-# 0 2 * * * cd ~/tradingAssistant && /usr/bin/python3 run_daily_update_ec2.py >> logs/cron.log 2>&1
+# 30 16 * * 1-5 cd ~/tradingAssistant && /usr/bin/python3 run_daily_jobs.py >> logs/cron.log 2>&1
 #
 # Alternative schedules:
-# - Daily at 2 AM UTC: 0 2 * * *
-# - Daily at 6 AM UTC: 0 6 * * *
-# - Every 12 hours: 0 */12 * * *
-# - Weekdays only at 2 AM: 0 2 * * 1-5
+# - Weekdays at 4:30 PM: 30 16 * * 1-5
+# - Weekdays at 2:00 AM: 0 2 * * 1-5
+# - Weekdays at 6:00 AM: 0 6 * * 1-5
+# - Every weekday at noon: 0 12 * * 1-5
 #
 # To view cron logs:
 # tail -f ~/tradingAssistant/logs/cron.log
+#
+# Note: Cron uses the system timezone. To run at 4:30 PM Eastern Time,
+# set your EC2 instance timezone to America/New_York
 
 # Recommended cron entry (uncomment and adjust):
-# 0 2 * * * cd ~/tradingAssistant && /usr/bin/python3 run_daily_update_ec2.py >> logs/cron.log 2>&1
+# 30 16 * * 1-5 cd ~/tradingAssistant && /usr/bin/python3 run_daily_jobs.py >> logs/cron.log 2>&1
 
