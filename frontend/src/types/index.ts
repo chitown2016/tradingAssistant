@@ -71,3 +71,27 @@ export interface ApiError {
   detail: string;
 }
 
+/**
+ * Relative strength data point
+ */
+export interface RelativeStrengthData {
+  calculation_date: string; // ISO 8601 datetime string
+  rs_rating: number | null;
+  weighted_change: number | null;
+  pct_change_3mo: number | null;
+  pct_change_6mo: number | null;
+  pct_change_9mo: number | null;
+  pct_change_12mo: number | null;
+}
+
+/**
+ * Response wrapper for relative strength timeseries data
+ */
+export interface RelativeStrengthTimeseriesResponse {
+  symbol: string;
+  data: RelativeStrengthData[];
+  count: number;
+  start_date: string | null; // ISO 8601 datetime string
+  end_date: string | null; // ISO 8601 datetime string
+}
+

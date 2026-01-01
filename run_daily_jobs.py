@@ -12,6 +12,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
 
+# Set up environment variables
+os.environ['PYTHONUNBUFFERED'] = '1'  # Disable buffering for real-time logs
+
 # Set up paths
 SCRIPT_DIR = Path(__file__).parent.absolute()
 os.chdir(SCRIPT_DIR)

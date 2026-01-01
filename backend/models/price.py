@@ -101,3 +101,56 @@ class LatestPriceResponse(BaseModel):
             }
         }
 
+
+class RelativeStrengthData(BaseModel):
+    """Relative strength data point"""
+    calculation_date: datetime = Field(..., description="Date of calculation")
+    rs_rating: Optional[int] = Field(None, description="RS Rating (1-99)")
+    weighted_change: Optional[float] = Field(None, description="Weighted change percentage")
+    pct_change_3mo: Optional[float] = Field(None, description="3 month percentage change")
+    pct_change_6mo: Optional[float] = Field(None, description="6 month percentage change")
+    pct_change_9mo: Optional[float] = Field(None, description="9 month percentage change")
+    pct_change_12mo: Optional[float] = Field(None, description="12 month percentage change")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "calculation_date": "2024-01-15T00:00:00",
+                "rs_rating": 85,
+                "weighted_change": 15.5,
+                "pct_change_3mo": 10.2,
+                "pct_change_6mo": 15.5,
+                "pct_change_9mo": 12.3,
+                "pct_change_12mo": 18.7
+            }
+        }
+
+
+class RelativeStrengthTimeseriesResponse(BaseModel):
+    """Response wrapper for relative strength timeseries data"""
+    symbol: str = Field(..., description="Stock symbol")
+    data: List[RelativeStrengthData] = Field(..., description="List of relative strength data points")
+    count: int = Field(..., description="Number of data points returned")
+    start_date: Optional[datetime] = Field(None, description="Start date of the query")
+    end_date: Optional[datetime] = Field(None, description="End date of the query")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "symbol": "AAPL",
+                "count": 30,
+                "start_date": "2024-01-01T00:00:00",
+                "end_date": "2024-01-30T00:00:00",
+                "data": [
+                    {
+                        "calculation_date": "2024-01-15T00:00:00",
+                        "rs_rating": 85,
+                        "weighted_change": 15.5,
+                        "pct_change_3mo": 10.2,
+                        "pct_change_6mo": 15.5,
+                        "pct_change_9mo": 12.3,
+                        "pct_change_12mo": 18.7
+                    }
+                ]
+            }
+        }

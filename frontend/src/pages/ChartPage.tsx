@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import Chart from '../components/Chart';
 import { apiService } from '../services/api';
-import type { PriceData, SymbolMetadata, LatestPriceResponse } from '../types';
+import type { PriceData, SymbolMetadata, LatestPriceResponse, RelativeStrengthData } from '../types';
 
 type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 
@@ -34,6 +34,9 @@ export default function ChartPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIndicator, setSelectedIndicator] = useState<string>('');
+  const [relativeStrengthData, setRelativeStrengthData] = useState<RelativeStrengthData[]>([]);
+  const [loadingIndicator, setLoadingIndicator] = useState<boolean>(false);
 
   // Load default symbols on mount (for when search is empty)
   useEffect(() => {
@@ -117,6 +120,40 @@ export default function ChartPage() {
 
     loadPriceData();
   }, [selectedSymbol, timeRange]);
+
+  // Load relative strength data when indicator is selected
+  useEffect(() => {
+    async function loadRelativeStrengthData() {
+      if (!selectedIndicator || selectedIndicator !== 'relative-strength' || !selectedSymbol) {
+        setRelativeStrengthData([]);
+        return;
+      }
+
+      setLoadingIndicator(true);
+      try {
+        // Calculate date range to match price data
+        const endDate = new Date();
+        const timeRangeOption = TIME_RANGES.find((r) => r.value === timeRange);
+        const startDate = timeRangeOption?.days
+          ? new Date(endDate.getTime() - timeRangeOption.days * 24 * 60 * 60 * 1000)
+          : null;
+
+        const response = await apiService.getRelativeStrengthTimeseries(selectedSymbol, {
+          start_date: startDate ? startDate.toISOString() : undefined,
+          end_date: endDate.toISOString(),
+        });
+
+        setRelativeStrengthData(response.data);
+      } catch (err: any) {
+        console.error('Failed to load relative strength data:', err);
+        setRelativeStrengthData([]);
+      } finally {
+        setLoadingIndicator(false);
+      }
+    }
+
+    loadRelativeStrengthData();
+  }, [selectedSymbol, timeRange, selectedIndicator]);
 
   // Filter symbols based on search (client-side fallback)
   const filteredSymbols = symbols.filter((symbol) =>
@@ -226,26 +263,48 @@ export default function ChartPage() {
         )}
       </div>
 
-      {/* Time Range Selection */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {TIME_RANGES.map((range) => (
-          <button
-            key={range.value}
-            onClick={() => setTimeRange(range.value)}
+      {/* Time Range Selection and Indicator Dropdown */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {TIME_RANGES.map((range) => (
+            <button
+              key={range.value}
+              onClick={() => setTimeRange(range.value)}
+              style={{
+                padding: '8px 16px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                backgroundColor: timeRange === range.value ? '#26a69a' : 'white',
+                color: timeRange === range.value ? 'white' : '#333',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: timeRange === range.value ? 'bold' : 'normal',
+              }}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+        
+        {/* Indicator Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ fontSize: '14px', fontWeight: '500' }}>Indicator:</label>
+          <select
+            value={selectedIndicator}
+            onChange={(e) => setSelectedIndicator(e.target.value)}
             style={{
-              padding: '8px 16px',
+              padding: '8px 12px',
               border: '1px solid #ccc',
               borderRadius: '4px',
-              backgroundColor: timeRange === range.value ? '#26a69a' : 'white',
-              color: timeRange === range.value ? 'white' : '#333',
-              cursor: 'pointer',
               fontSize: '14px',
-              fontWeight: timeRange === range.value ? 'bold' : 'normal',
+              cursor: 'pointer',
+              minWidth: '200px',
             }}
           >
-            {range.label}
-          </button>
-        ))}
+            <option value="">None</option>
+            <option value="relative-strength">Oneil Relative Strength Timeseries</option>
+          </select>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -274,7 +333,12 @@ export default function ChartPage() {
       {/* Chart */}
       {!loading && priceData.length > 0 && (
         <div style={{ border: '1px solid #e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
-          <Chart data={priceData} height={600} />
+          <Chart 
+            data={priceData} 
+            height={600}
+            relativeStrengthData={selectedIndicator === 'relative-strength' ? relativeStrengthData : undefined}
+            loadingIndicator={loadingIndicator}
+          />
         </div>
       )}
 

@@ -8,6 +8,7 @@ import type {
   SymbolMetadata,
   TimeSeriesResponse,
   LatestPriceResponse,
+  RelativeStrengthTimeseriesResponse,
   PriceQueryParams,
   SymbolQueryParams,
   ApiError,
@@ -147,6 +148,20 @@ export const apiService = {
     const response = await api.get<SymbolMetadata[]>('/symbols/search', {
       params: { q: query, limit },
     });
+    return response.data;
+  },
+
+  /**
+   * Get relative strength timeseries data for a symbol
+   */
+  async getRelativeStrengthTimeseries(
+    symbol: string,
+    params?: { start_date?: string; end_date?: string }
+  ): Promise<RelativeStrengthTimeseriesResponse> {
+    const response = await api.get<RelativeStrengthTimeseriesResponse>(
+      `/symbols/${symbol}/relative-strength`,
+      { params }
+    );
     return response.data;
   },
 };

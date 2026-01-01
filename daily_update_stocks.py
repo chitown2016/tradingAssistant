@@ -13,6 +13,7 @@ import sys
 import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from store_stock_data import get_db_connection, get_all_us_tickers
+import pytz
 
 # Fix Windows Unicode encoding issues AND disable buffering
 if sys.platform == 'win32':
@@ -171,6 +172,9 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
     if not tickers:
         return None
     
+    # Set up New York timezone
+    ny_tz = pytz.timezone('America/New_York')
+    
     # For 'max' period with callback, process incrementally to save memory
     if period == 'max' and process_callback is not None:
         print(f"  Downloading {len(tickers)} tickers in batches of {batch_size} (incremental processing)...")
@@ -181,6 +185,7 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
             batch_num = (i // batch_size) + 1
             
             print(f"    Batch {batch_num}/{total_batches}: Downloading {len(batch)} tickers...")
+            batch_start = time.time()
             
             try:
                 batch_data = yf.download(
@@ -190,6 +195,8 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
                     auto_adjust=True,
                     threads=True
                 )
+                batch_duration = time.time() - batch_start
+                batch_end_time = datetime.now(ny_tz).strftime('%H:%M:%S')
                 # ADD DEBUG OUTPUT HERE
                 print(f"    Batch {batch_num} download completed. Checking data...")
                 print(f"      batch_data is None: {batch_data is None}")
@@ -205,12 +212,14 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
                     # Process immediately via callback
                     print(f"    Processing batch {batch_num}...")  # ADD THIS LINE
                     process_callback(batch_data, batch)
-                    print(f"    ✓ Batch {batch_num} downloaded and processed")
+                    print(f"    ✓ Batch {batch_num} downloaded and processed ({batch_duration:.1f}s) at {batch_end_time} ET")
                 else:
-                    print(f"    ⚠ Batch {batch_num} returned no data")
+                    print(f"    ⚠ Batch {batch_num} returned no data ({batch_duration:.1f}s) at {batch_end_time} ET")
                     
             except Exception as e:
-                print(f"    ✗ Batch {batch_num} error: {e}")
+                batch_duration = time.time() - batch_start
+                batch_end_time = datetime.now(ny_tz).strftime('%H:%M:%S')
+                print(f"    ✗ Batch {batch_num} error: {e} ({batch_duration:.1f}s) at {batch_end_time} ET")
             
             # Delay between batches to avoid rate limiting
             if i + batch_size < len(tickers):
@@ -230,6 +239,7 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
         batch_num = (i // batch_size) + 1
         
         print(f"    Batch {batch_num}/{total_batches}: Downloading {len(batch)} tickers...")
+        batch_start = time.time()
         
         try:
             batch_data = yf.download(
@@ -239,15 +249,19 @@ def download_data_in_batches(tickers, period='max', batch_size=200, delay=2, pro
                 auto_adjust=True,
                 threads=True
             )
+            batch_duration = time.time() - batch_start
+            batch_end_time = datetime.now(ny_tz).strftime('%H:%M:%S')
             
             if batch_data is not None and not batch_data.empty:
                 all_data.append(batch_data)
-                print(f"    ✓ Batch {batch_num} complete")
+                print(f"    ✓ Batch {batch_num} complete ({batch_duration:.1f}s) at {batch_end_time} ET")
             else:
-                print(f"    ⚠ Batch {batch_num} returned no data")
+                print(f"    ⚠ Batch {batch_num} returned no data ({batch_duration:.1f}s) at {batch_end_time} ET")
                 
         except Exception as e:
-            print(f"    ✗ Batch {batch_num} error: {e}")
+            batch_duration = time.time() - batch_start
+            batch_end_time = datetime.now(ny_tz).strftime('%H:%M:%S')
+            print(f"    ✗ Batch {batch_num} error: {e} ({batch_duration:.1f}s) at {batch_end_time} ET")
         
         # Delay between batches to avoid rate limiting
         if i + batch_size < len(tickers):

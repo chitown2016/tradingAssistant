@@ -3,12 +3,12 @@ Symbol endpoints - list symbols, metadata, and price data
 """
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 import psycopg2
 from backend.db import get_db
-from backend.models.price import SymbolMetadata, PriceData, TimeSeriesResponse, LatestPriceResponse
+from backend.models.price import SymbolMetadata, PriceData, TimeSeriesResponse, LatestPriceResponse, RelativeStrengthTimeseriesResponse, RelativeStrengthData
 
 router = APIRouter()
 
@@ -415,6 +415,108 @@ async def get_latest_price(
         raise
     except Exception as e:
         logger.error(f"get_latest_price ERROR: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cursor.close()
+
+
+@router.get("/{symbol}/relative-strength", response_model=RelativeStrengthTimeseriesResponse)
+async def get_relative_strength_timeseries(
+    symbol: str,
+    start_date: Optional[datetime] = Query(None, description="Start date (ISO format)"),
+    end_date: Optional[datetime] = Query(None, description="End date (ISO format)"),
+    db: psycopg2.extensions.connection = Depends(get_db)
+):
+    """
+    Get relative strength timeseries data for a symbol
+    
+    Query parameters:
+    - start_date: Start date for the query (defaults to 1 year ago if not specified)
+    - end_date: End date for the query (defaults to today if not specified)
+    """
+    cursor = db.cursor()
+    
+    try:
+        symbol_upper = symbol.upper()
+        
+        # Set default dates if not provided
+        if not end_date:
+            end_date = datetime.now()
+        if not start_date:
+            start_date = end_date - timedelta(days=365)
+        
+        # Convert timezone-aware datetimes to naive (database uses DATE without timezone)
+        if start_date.tzinfo is not None:
+            start_date = start_date.replace(tzinfo=None)
+        if end_date.tzinfo is not None:
+            end_date = end_date.replace(tzinfo=None)
+        
+        # Check if symbol exists
+        cursor.execute("SELECT COUNT(*) FROM tickers WHERE symbol = %s", (symbol_upper,))
+        if cursor.fetchone()[0] == 0:
+            raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
+        
+        # Query relative strength data
+        # Convert datetime to date for comparison with DATE column
+        start_date_only = start_date.date() if isinstance(start_date, datetime) else start_date
+        end_date_only = end_date.date() if isinstance(end_date, datetime) else end_date
+        
+        query = """
+            SELECT calculation_date, rs_rating, weighted_change, 
+                   pct_change_3mo, pct_change_6mo, pct_change_9mo, pct_change_12mo
+            FROM stock_indicators
+            WHERE symbol = %s 
+              AND calculation_date >= %s 
+              AND calculation_date <= %s
+            ORDER BY calculation_date ASC
+        """
+        
+        cursor.execute(query, (symbol_upper, start_date_only, end_date_only))
+        rows = cursor.fetchall()
+        
+        if not rows:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No relative strength data found for symbol '{symbol}' in the specified date range"
+            )
+        
+        # Convert to RelativeStrengthData objects
+        rs_data = []
+        for row in rows:
+            # Convert date to datetime for consistency
+            # PostgreSQL returns calculation_date as a date object
+            if isinstance(row[0], date):
+                calc_date = datetime.combine(row[0], datetime.min.time())
+            elif isinstance(row[0], datetime):
+                calc_date = row[0]
+            else:
+                # Try to parse if it's a string
+                calc_date = datetime.fromisoformat(str(row[0])) if isinstance(row[0], str) else datetime.now()
+            
+            rs_data.append(RelativeStrengthData(
+                calculation_date=calc_date,
+                rs_rating=row[1],
+                weighted_change=float(row[2]) if row[2] is not None else None,
+                pct_change_3mo=float(row[3]) if row[3] is not None else None,
+                pct_change_6mo=float(row[4]) if row[4] is not None else None,
+                pct_change_9mo=float(row[5]) if row[5] is not None else None,
+                pct_change_12mo=float(row[6]) if row[6] is not None else None,
+            ))
+        
+        return RelativeStrengthTimeseriesResponse(
+            symbol=symbol_upper,
+            data=rs_data,
+            count=len(rs_data),
+            start_date=start_date,
+            end_date=end_date
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"get_relative_strength_timeseries ERROR: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         cursor.close()
