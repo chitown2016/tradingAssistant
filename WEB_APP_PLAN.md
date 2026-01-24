@@ -239,7 +239,7 @@ tradingAssistant/
 │   ├── package.json
 │   └── vite.config.ts
 ├── store_stock_data.py (existing)
-├── relative_strength.py (existing)
+├── calculate_indicators.py (existing)
 └── daily_update_stocks.py (existing)
 ```
 

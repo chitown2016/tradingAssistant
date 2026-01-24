@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Orchestrator script to run daily_update_stocks and relative_strength consecutively
+Orchestrator script to run daily_update_stocks and calculate_indicators consecutively
 with Telegram notifications for success/failure.
 """
 
@@ -87,7 +87,7 @@ def main():
     
     if not result1['success']:
         print(f"\n✗ {result1['script']} FAILED with exit code {result1['exit_code']}")
-        print("Stopping - not running relative_strength.py")
+        print("Stopping - not running calculate_indicators.py")
         
         # Send failure notification and exit
         overall_end = datetime.now()
@@ -102,8 +102,8 @@ def main():
         
         return 1
     
-    # Script 2: Relative Strength (only runs if first succeeded)
-    result2 = run_script('relative_strength.py')
+    # Script 2: Stock Indicators (only runs if first succeeded)
+    result2 = run_script('calculate_indicators.py')
     results.append(result2)
     
     if not result2['success']:

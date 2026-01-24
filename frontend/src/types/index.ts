@@ -95,3 +95,24 @@ export interface RelativeStrengthTimeseriesResponse {
   end_date: string | null; // ISO 8601 datetime string
 }
 
+/**
+ * Indicator configuration
+ */
+export interface IndicatorConfig {
+  id: string;
+  type: 'SMA' | 'EMA';
+  period: number;
+  color: string;
+  lineWidth: number;
+  lineStyle: 'solid' | 'dashed' | 'dotted';
+  visible: boolean;
+}
+
+/**
+ * Indicator data point
+ */
+export interface IndicatorDataPoint {
+  time: string;
+  value: number;
+}
+

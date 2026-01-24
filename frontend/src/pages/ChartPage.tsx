@@ -5,7 +5,8 @@
 import { useState, useEffect } from 'react';
 import Chart from '../components/Chart';
 import { apiService } from '../services/api';
-import type { PriceData, SymbolMetadata, LatestPriceResponse, RelativeStrengthData } from '../types';
+import type { PriceData, SymbolMetadata, LatestPriceResponse, RelativeStrengthData, IndicatorConfig } from '../types';
+import { getTemplates, saveTemplate, loadTemplate, deleteTemplate, type ChartTemplate } from '../utils/templates';
 
 type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 
@@ -37,6 +38,18 @@ export default function ChartPage() {
   const [selectedIndicator, setSelectedIndicator] = useState<string>('');
   const [relativeStrengthData, setRelativeStrengthData] = useState<RelativeStrengthData[]>([]);
   const [loadingIndicator, setLoadingIndicator] = useState<boolean>(false);
+  const [indicators, setIndicators] = useState<IndicatorConfig[]>([]);
+  
+  // Template management state
+  const [templates, setTemplates] = useState<ChartTemplate[]>([]);
+  const [templateName, setTemplateName] = useState<string>('');
+  const [showSaveTemplate, setShowSaveTemplate] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Load templates on mount
+  useEffect(() => {
+    setTemplates(getTemplates());
+  }, []);
 
   // Load default symbols on mount (for when search is empty)
   useEffect(() => {
@@ -168,6 +181,115 @@ export default function ChartPage() {
     latestPrice && priceData.length > 1
       ? ((priceChange / priceData[priceData.length - 2].close) * 100)
       : 0;
+
+  // Indicator management functions
+  const handleAddIndicator = (type: 'SMA' | 'EMA', period: number) => {
+    const id = `${type}-${period}-${Date.now()}`;
+    const defaultColors = {
+      SMA: '#2196F3',
+      EMA: '#FF9800',
+    };
+    
+    const newIndicator: IndicatorConfig = {
+      id,
+      type,
+      period,
+      color: defaultColors[type],
+      lineWidth: 2,
+      lineStyle: 'solid',
+      visible: true,
+    };
+    
+    setIndicators([...indicators, newIndicator]);
+  };
+
+  const handleUpdateIndicator = (id: string, updates: Partial<IndicatorConfig>) => {
+    setIndicators(indicators.map(ind => 
+      ind.id === id ? { ...ind, ...updates } : ind
+    ));
+  };
+
+  const handleRemoveIndicator = (id: string) => {
+    setIndicators(indicators.filter(ind => ind.id !== id));
+  };
+
+  // Template management functions
+  const handleSaveTemplate = () => {
+    if (!templateName.trim()) {
+      setSaveError('Template name is required');
+      return;
+    }
+
+    if (indicators.length === 0) {
+      setSaveError('Add at least one indicator before saving');
+      return;
+    }
+
+    try {
+      saveTemplate(templateName.trim(), indicators);
+      setTemplates(getTemplates());
+      setTemplateName('');
+      setShowSaveTemplate(false);
+      setSaveError(null);
+    } catch (error: any) {
+      setSaveError(error.message || 'Failed to save template');
+    }
+  };
+
+  const handleLoadTemplate = (templateId: string) => {
+    const template = loadTemplate(templateId);
+    if (template) {
+      // Generate new IDs for loaded indicators to avoid conflicts
+      const loadedIndicators = template.indicators.map(ind => ({
+        ...ind,
+        id: `${ind.type}-${ind.period}-${Date.now()}-${Math.random()}`,
+      }));
+      setIndicators(loadedIndicators);
+      setSaveError(null);
+    }
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    if (window.confirm('Are you sure you want to delete this template?')) {
+      if (deleteTemplate(templateId)) {
+        setTemplates(getTemplates());
+        setSaveError(null);
+      }
+    }
+  };
+
+  // Load older data when user pans to the beginning of the chart
+  const handleLoadOlderData = async (beforeDate: string): Promise<PriceData[]> => {
+    if (!selectedSymbol) return [];
+
+    try {
+      // Calculate how much older data to load (e.g., 1 year before the beforeDate)
+      const endDate = new Date(beforeDate);
+      const startDate = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // 1 year before
+
+      // Fetch older price data
+      const response = await apiService.getPrices(selectedSymbol, {
+        interval: '1d',
+        start_date: startDate.toISOString(),
+        end_date: beforeDate, // Load up to (but not including) the beforeDate
+      });
+
+      // Filter out any data that might overlap with existing data
+      const existingTimestamps = new Set(priceData.map(d => d.timestamp));
+      const newData = response.data.filter(d => !existingTimestamps.has(d.timestamp));
+
+      // Prepend older data to existing data
+      if (newData.length > 0) {
+        setPriceData([...newData, ...priceData]);
+      }
+
+      return newData;
+    } catch (err: any) {
+      console.error('Failed to load older data:', err);
+      return [];
+    }
+  };
+
 
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -307,6 +429,210 @@ export default function ChartPage() {
         </div>
       </div>
 
+      {/* Chart Templates Section */}
+      <div style={{ 
+        marginBottom: '20px', 
+        padding: '16px', 
+        border: '1px solid #e0e0e0', 
+        borderRadius: '4px',
+        backgroundColor: '#f9f9f9',
+      }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
+          <strong style={{ fontSize: '16px' }}>Chart Templates:</strong>
+          
+          {/* Load Template Dropdown */}
+          {templates.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '14px' }}>Load:</label>
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleLoadTemplate(e.target.value);
+                    e.target.value = ''; // Reset selection
+                  }
+                }}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  minWidth: '180px',
+                }}
+                defaultValue=""
+              >
+                <option value="">Select a template...</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} ({template.indicators.length} indicator{template.indicators.length !== 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Save Template Button */}
+          <button
+            onClick={() => {
+              setShowSaveTemplate(!showSaveTemplate);
+              setSaveError(null);
+            }}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid #26a69a',
+              borderRadius: '4px',
+              backgroundColor: '#26a69a',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+            }}
+          >
+            {showSaveTemplate ? 'Cancel' : '💾 Save Template'}
+          </button>
+        </div>
+
+        {/* Save Template Form */}
+        {showSaveTemplate && (
+          <div style={{ 
+            padding: '12px', 
+            backgroundColor: 'white', 
+            borderRadius: '4px',
+            border: '1px solid #ddd',
+          }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Template name (e.g., 'My Trading Setup')"
+                value={templateName}
+                onChange={(e) => {
+                  setTemplateName(e.target.value);
+                  setSaveError(null);
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveTemplate();
+                  }
+                }}
+                style={{
+                  flex: '1',
+                  minWidth: '200px',
+                  padding: '6px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                }}
+              />
+              <button
+                onClick={handleSaveTemplate}
+                disabled={!templateName.trim() || indicators.length === 0}
+                style={{
+                  padding: '6px 16px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  backgroundColor: (!templateName.trim() || indicators.length === 0) ? '#ccc' : '#26a69a',
+                  color: 'white',
+                  cursor: (!templateName.trim() || indicators.length === 0) ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                }}
+              >
+                Save
+              </button>
+            </div>
+            {saveError && (
+              <div style={{ 
+                marginTop: '8px', 
+                padding: '8px', 
+                backgroundColor: '#fee', 
+                border: '1px solid #fcc', 
+                borderRadius: '4px', 
+                color: '#c00',
+                fontSize: '13px',
+              }}>
+                {saveError}
+              </div>
+            )}
+            {indicators.length === 0 && (
+              <div style={{ 
+                marginTop: '8px', 
+                fontSize: '13px', 
+                color: '#666',
+              }}>
+                Add indicators to your chart before saving a template.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Template List */}
+        {templates.length > 0 && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+              Saved Templates ({templates.length}):
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {templates.map((template) => (
+                <div
+                  key={template.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 12px',
+                    backgroundColor: 'white',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                  }}
+                >
+                  <span style={{ fontWeight: '500' }}>{template.name}</span>
+                  <span style={{ color: '#666' }}>
+                    ({template.indicators.length} indicator{template.indicators.length !== 1 ? 's' : ''})
+                  </span>
+                  <button
+                    onClick={() => handleLoadTemplate(template.id)}
+                    style={{
+                      padding: '2px 8px',
+                      border: '1px solid #26a69a',
+                      borderRadius: '3px',
+                      backgroundColor: 'transparent',
+                      color: '#26a69a',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                    title="Load template"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTemplate(template.id)}
+                    style={{
+                      padding: '2px 8px',
+                      border: '1px solid #ef5350',
+                      borderRadius: '3px',
+                      backgroundColor: 'transparent',
+                      color: '#ef5350',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                    title="Delete template"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {templates.length === 0 && !showSaveTemplate && (
+          <div style={{ fontSize: '13px', color: '#666', fontStyle: 'italic' }}>
+            No saved templates. Save your indicator configurations as templates to reuse them later.
+          </div>
+        )}
+      </div>
+
       {/* Error Message */}
       {error && (
         <div
@@ -338,6 +664,11 @@ export default function ChartPage() {
             height={600}
             relativeStrengthData={selectedIndicator === 'relative-strength' ? relativeStrengthData : undefined}
             loadingIndicator={loadingIndicator}
+            indicators={indicators}
+            onAddIndicator={handleAddIndicator}
+            onUpdateIndicator={handleUpdateIndicator}
+            onRemoveIndicator={handleRemoveIndicator}
+            onLoadOlderData={handleLoadOlderData}
           />
         </div>
       )}
