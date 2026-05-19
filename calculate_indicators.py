@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from datetime import datetime
 from datetime import date
 import argparse
@@ -176,13 +177,16 @@ def calculate_indicators_batch(conn, symbols_batch, calc_date):
         
         # Calculate weighted change
         weighted_change = None
-        if all(x is not None for x in [pct_change_3mo, pct_change_6mo, pct_change_9mo, pct_change_12mo]):
+        pct_components = [pct_change_3mo, pct_change_6mo, pct_change_9mo, pct_change_12mo]
+        if all(x is not None and np.isfinite(x) for x in pct_components):
             weighted_change = (
                 pct_change_3mo * 0.4 +
                 pct_change_6mo * 0.2 +
                 pct_change_9mo * 0.2 +
                 pct_change_12mo * 0.2
             )
+            if not np.isfinite(weighted_change):
+                weighted_change = None
         
         results.append({
             'symbol': symbol,
@@ -349,7 +353,20 @@ def calculate_and_store_indicators(calc_date=None, batch_size=500):
         
         # Convert to DataFrame for easy percentile calculation
         df = pd.DataFrame(all_results, columns=['symbol', 'weighted_change'])
-        
+
+        # weighted_change comes back as Decimal; coerce to float and drop
+        # non-finite values (NUMERIC 'NaN' / inf survive the SQL IS NOT NULL filter)
+        df['weighted_change'] = pd.to_numeric(df['weighted_change'], errors='coerce')
+        before = len(df)
+        df = df[np.isfinite(df['weighted_change'])].copy()
+        dropped = before - len(df)
+        if dropped:
+            print(f"  ⚠ Dropped {dropped} symbols with non-finite weighted_change")
+
+        if df.empty:
+            print("  ⚠ No finite weighted_change values to rank")
+            return
+
         # Calculate percentile rank (1-99 scale)
         # Higher weighted_change = higher rank
         df['rs_rating'] = df['weighted_change'].rank(pct=True, method='min')
