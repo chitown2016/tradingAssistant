@@ -96,6 +96,31 @@ export interface RelativeStrengthTimeseriesResponse {
 }
 
 /**
+ * A named server-side watchlist
+ */
+export interface Watchlist {
+  id: number;
+  name: string;
+  position: number;
+  item_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * Bulk quote row for the watchlist sidebar
+ */
+export interface Quote {
+  symbol: string;
+  last_close: number;
+  prior_close: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number;
+  as_of_date: string;
+}
+
+/**
  * Indicator configuration
  */
 export interface IndicatorConfig {

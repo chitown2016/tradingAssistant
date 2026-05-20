@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import Chart from '../components/Chart';
+import Watchlist from '../components/Watchlist';
 import { apiService } from '../services/api';
 import type { PriceData, SymbolMetadata, LatestPriceResponse, RelativeStrengthData, IndicatorConfig } from '../types';
 import { getTemplates, saveTemplate, loadTemplate, deleteTemplate, type ChartTemplate } from '../utils/templates';
@@ -292,7 +293,7 @@ export default function ChartPage() {
 
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', maxWidth: '1700px', margin: '0 auto' }}>
       {/* Header with Symbol Search and Selection */}
       <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
@@ -429,11 +430,15 @@ export default function ChartPage() {
         </div>
       </div>
 
+      {/* Main: chart area on left, watchlist sidebar on right */}
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+
       {/* Chart Templates Section */}
-      <div style={{ 
-        marginBottom: '20px', 
-        padding: '16px', 
-        border: '1px solid #e0e0e0', 
+      <div style={{
+        marginBottom: '20px',
+        padding: '16px',
+        border: '1px solid #e0e0e0',
         borderRadius: '4px',
         backgroundColor: '#f9f9f9',
       }}>
@@ -679,6 +684,15 @@ export default function ChartPage() {
           No price data available for {selectedSymbol}
         </div>
       )}
+        </div>
+
+        <aside style={{ width: '320px', flexShrink: 0, position: 'sticky', top: '20px' }}>
+          <Watchlist
+            onSelectSymbol={setSelectedSymbol}
+            selectedSymbol={selectedSymbol}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

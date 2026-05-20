@@ -70,10 +70,11 @@ async def health_check():
 
 
 # Import API routes
-from backend.api.v1 import symbols
+from backend.api.v1 import symbols, watchlists
 
 # Include routers
 app.include_router(symbols.router, prefix="/api/v1/symbols", tags=["symbols"])
+app.include_router(watchlists.router, prefix="/api/v1/watchlists", tags=["watchlists"])
 
 # TODO: Add indicators router in Phase 1.3
 # from backend.api.v1 import indicators

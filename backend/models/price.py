@@ -102,6 +102,22 @@ class LatestPriceResponse(BaseModel):
         }
 
 
+class Quote(BaseModel):
+    """Latest quote with day-over-day change for the watchlist sidebar"""
+    symbol: str
+    last_close: float
+    prior_close: Optional[float] = None
+    change: Optional[float] = None
+    change_pct: Optional[float] = None
+    volume: int
+    as_of_date: datetime
+
+
+class QuotesRequest(BaseModel):
+    """Bulk request body for /symbols/quotes"""
+    symbols: List[str] = Field(..., min_length=1, max_length=100)
+
+
 class RelativeStrengthData(BaseModel):
     """Relative strength data point"""
     calculation_date: datetime = Field(..., description="Date of calculation")

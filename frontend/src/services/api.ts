@@ -12,6 +12,8 @@ import type {
   PriceQueryParams,
   SymbolQueryParams,
   ApiError,
+  Watchlist,
+  Quote,
 } from '../types';
 
 /**
@@ -163,6 +165,49 @@ export const apiService = {
       { params }
     );
     return response.data;
+  },
+
+  /**
+   * Get last + prior close (and change %) for up to 100 symbols in one request.
+   */
+  async getQuotes(symbols: string[]): Promise<Quote[]> {
+    if (!symbols.length) return [];
+    const response = await api.post<Quote[]>('/symbols/quotes', { symbols });
+    return response.data;
+  },
+
+  // ----- Watchlists -----
+
+  async listWatchlists(): Promise<Watchlist[]> {
+    const response = await api.get<Watchlist[]>('/watchlists');
+    return response.data;
+  },
+
+  async createWatchlist(name: string): Promise<Watchlist> {
+    const response = await api.post<Watchlist>('/watchlists', { name });
+    return response.data;
+  },
+
+  async renameWatchlist(id: number, name: string): Promise<Watchlist> {
+    const response = await api.patch<Watchlist>(`/watchlists/${id}`, { name });
+    return response.data;
+  },
+
+  async deleteWatchlist(id: number): Promise<void> {
+    await api.delete(`/watchlists/${id}`);
+  },
+
+  async getWatchlistItems(id: number): Promise<string[]> {
+    const response = await api.get<string[]>(`/watchlists/${id}/items`);
+    return response.data;
+  },
+
+  async addWatchlistItem(id: number, symbol: string): Promise<void> {
+    await api.post(`/watchlists/${id}/items`, { symbol });
+  },
+
+  async removeWatchlistItem(id: number, symbol: string): Promise<void> {
+    await api.delete(`/watchlists/${id}/items/${encodeURIComponent(symbol)}`);
   },
 };
 

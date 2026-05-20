@@ -8,7 +8,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 import psycopg2
 from backend.db import get_db
-from backend.models.price import SymbolMetadata, PriceData, TimeSeriesResponse, LatestPriceResponse, RelativeStrengthTimeseriesResponse, RelativeStrengthData
+from backend.models.price import SymbolMetadata, PriceData, TimeSeriesResponse, LatestPriceResponse, RelativeStrengthTimeseriesResponse, RelativeStrengthData, Quote, QuotesRequest
 
 router = APIRouter()
 
@@ -517,6 +517,96 @@ async def get_relative_strength_timeseries(
         import traceback
         logger.error(f"get_relative_strength_timeseries ERROR: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cursor.close()
+
+
+@router.post("/quotes", response_model=List[Quote])
+async def get_quotes(
+    payload: QuotesRequest,
+    db: psycopg2.extensions.connection = Depends(get_db),
+):
+    """
+    Return last close + prior close (and change/change_pct) for up to 100 symbols
+    in a single round trip. Time-bounded to keep TimescaleDB chunk pruning effective
+    and avoid max_locks_per_transaction issues.
+    """
+    if not payload.symbols:
+        return []
+
+    symbols = sorted({s.upper().strip() for s in payload.symbols if s.strip()})
+    if not symbols:
+        return []
+
+    cursor = db.cursor()
+    try:
+        # TimescaleDB only excludes chunks when both the symbol and the time
+        # bound are literals known to the planner. A single query with
+        # symbol = ANY(%s) defeats chunk exclusion and scans every chunk
+        # (20s+ even for one symbol). Per-symbol /latest is ~300ms because the
+        # planner sees a single literal symbol and a literal date.
+        #
+        # So: look up last_date per symbol in one trip, then build a UNION ALL
+        # of small per-symbol subqueries with their own literal bounds. Each
+        # subquery gets full chunk exclusion; total query stays a single round
+        # trip.
+
+        cursor.execute(
+            "SELECT symbol, last_date FROM tickers "
+            "WHERE symbol = ANY(%s) AND last_date IS NOT NULL",
+            (symbols,),
+        )
+        date_map = {row[0]: row[1] for row in cursor.fetchall()}
+        if not date_map:
+            return []
+
+        parts = []
+        params: list = []
+        for sym, last_date in date_map.items():
+            start_date = last_date - timedelta(days=10)
+            parts.append(
+                "(SELECT %s::text AS symbol, timestamp, close, volume "
+                "FROM yahoo_adjusted_stock_prices "
+                "WHERE symbol = %s AND timestamp >= %s "
+                "ORDER BY timestamp DESC LIMIT 2)"
+            )
+            params.extend([sym, sym, start_date])
+
+        cursor.execute(" UNION ALL ".join(parts), params)
+        rows = cursor.fetchall()
+
+        per_symbol: dict = {}
+        for sym, ts, close, vol in rows:
+            per_symbol.setdefault(sym, []).append((ts, close, vol))
+
+        quotes: List[Quote] = []
+        for sym, points in per_symbol.items():
+            if not points:
+                continue
+            # Already sorted DESC within each subquery via LIMIT 2 ORDER BY
+            last_ts, last_close, last_volume = points[0]
+            last_close_f = float(last_close)
+            prior_close_f = float(points[1][1]) if len(points) > 1 else None
+
+            change = None
+            change_pct = None
+            if prior_close_f is not None and prior_close_f != 0:
+                change = last_close_f - prior_close_f
+                change_pct = (change / prior_close_f) * 100.0
+
+            quotes.append(Quote(
+                symbol=sym,
+                last_close=last_close_f,
+                prior_close=prior_close_f,
+                change=change,
+                change_pct=change_pct,
+                volume=int(last_volume) if last_volume is not None else 0,
+                as_of_date=last_ts,
+            ))
+        return quotes
+    except Exception as e:
+        logger.error(f"get_quotes ERROR: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         cursor.close()
