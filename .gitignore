@@ -33,3 +33,6 @@ daily_update_failed.txt
 *.swp
 *.swo
 *~
+
+# Personal operations notes (contains host IPs / local paths)
+README.md
