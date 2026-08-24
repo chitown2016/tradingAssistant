@@ -1,4 +1,3 @@
---Q@pCoktdmtqKF8
 
 -- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS timescaledb;
